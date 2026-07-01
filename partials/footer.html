@@ -1,0 +1,52 @@
+<footer class="site-footer" style="background:var(--primary-dark);color:#e9f1ec;margin-top:var(--space-xl);">
+  <div class="container" style="padding:var(--space-lg) var(--space-md);display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-md);">
+    <div>
+      <h3 style="font-family:var(--font-heading);margin-bottom:.6rem;color:#fff;">Gwikonge PEFA Church</h3>
+      <p style="opacity:.85;font-size:.9rem;">A family of believers proclaiming Christ, making disciples, and serving our community.</p>
+    </div>
+    <div>
+      <h4 style="margin-bottom:.6rem;color:#fff;">Quick Links</h4>
+      <p><a href="about.html" style="color:#cfe3d6;">About Us</a></p>
+      <p><a href="ministries.html" style="color:#cfe3d6;">Ministries</a></p>
+      <p><a href="events.html" style="color:#cfe3d6;">Events</a></p>
+      <p><a href="volunteer.html" style="color:#cfe3d6;">Volunteer</a></p>
+    </div>
+    <div>
+      <h4 style="margin-bottom:.6rem;color:#fff;">Get Involved</h4>
+      <p><a href="give.html" style="color:#cfe3d6;">Give Online</a></p>
+      <p><a href="prayer.html" style="color:#cfe3d6;">Prayer Requests</a></p>
+      <p><a href="testimonials.html" style="color:#cfe3d6;">Testimonials</a></p>
+      <p><a href="register.html" style="color:#cfe3d6;">Become a Member</a></p>
+    </div>
+    <div>
+      <h4 style="margin-bottom:.6rem;color:#fff;">Newsletter</h4>
+      <form id="footerNewsletterForm" style="display:flex;gap:.4rem;">
+        <input type="email" id="footerNewsletterEmail" placeholder="Your email" required
+          style="flex:1;padding:.5rem;border-radius:var(--radius);border:none;">
+        <button class="btn btn-secondary btn-sm" type="submit">Join</button>
+      </form>
+      <p id="footerNewsletterMsg" style="font-size:.8rem;margin-top:.4rem;"></p>
+    </div>
+  </div>
+  <div style="text-align:center;padding:1rem;border-top:1px solid rgba(255,255,255,.15);font-size:.85rem;opacity:.8;">
+    &copy; <span id="footerYear"></span> Gwikonge PEFA Church. All rights reserved.
+  </div>
+</footer>
+<script>
+  document.getElementById('footerYear').textContent = new Date().getFullYear();
+  const fnf = document.getElementById('footerNewsletterForm');
+  if (fnf) {
+    fnf.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('footerNewsletterEmail').value;
+      const msg = document.getElementById('footerNewsletterMsg');
+      try {
+        await Api.newsletter.subscribe({ email });
+        msg.textContent = 'Subscribed! Thank you.';
+        fnf.reset();
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    });
+  }
+</script>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prayer Requests — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Prayer Requests</h1><p>We'd be honored to pray with you.</p></section>
+
+<section class="section container">
+  <form id="prayerForm" class="app-form">
+    <div id="prayerAlert"></div>
+    <div class="form-group form-check">
+      <input type="checkbox" id="anonCheck">
+      <label for="anonCheck" style="margin:0;">Submit anonymously</label>
+    </div>
+    <div id="nameFields">
+      <div class="form-group"><label>Full Name</label><input type="text" id="pName"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="pEmail"></div>
+    </div>
+    <div class="form-group"><label>Your Prayer Request</label><textarea id="pRequest" required></textarea></div>
+    <div class="form-group form-check"><input type="checkbox" id="pUrgent"><label for="pUrgent" style="margin:0;">This is urgent</label></div>
+    <div class="form-group form-check"><input type="checkbox" id="pPublic"><label for="pPublic" style="margin:0;">Share on public prayer wall</label></div>
+    <button class="btn btn-primary btn-block" type="submit">Submit Request</button>
+  </form>
+</section>
+
+<section class="section container" style="background:var(--gray-light);">
+  <h2 class="section-title">Prayer Wall</h2>
+  <div id="prayerWall" class="grid grid-2"><p>Loading…</p></div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+document.getElementById('anonCheck').addEventListener('change', (e) => {
+  document.getElementById('nameFields').style.display = e.target.checked ? 'none' : 'block';
+});
+
+document.getElementById('prayerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('prayerAlert');
+  try {
+    await Api.prayer.submit({
+      fullName: document.getElementById('pName').value,
+      email: document.getElementById('pEmail').value,
+      request: document.getElementById('pRequest').value,
+      isAnonymous: document.getElementById('anonCheck').checked,
+      isUrgent: document.getElementById('pUrgent').checked,
+      isPublicOnWall: document.getElementById('pPublic').checked,
+    });
+    showAlert(alertBox, 'Your request has been received. Our prayer team is standing with you.', 'success');
+    e.target.reset();
+    loadWall();
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+
+async function loadWall() {
+  const wrap = document.getElementById('prayerWall');
+  try {
+    const { data } = await Api.prayer.wall();
+    wrap.innerHTML = data.length ? data.map(p => `
+      <div class="card"><div class="card-body">
+        <p>"${p.request}"</p>
+        <p class="card-meta">— ${p.fullName || 'Anonymous'} · ${fmtDate(p.createdAt)}</p>
+        ${p.status === 'answered' ? `<span class="badge badge-completed">Answered</span>` : ''}
+        ${p.testimony ? `<p style="font-style:italic;">${p.testimony}</p>` : ''}
+      </div></div>`).join('') : '<p>No public prayer requests yet.</p>';
+  } catch (e) { wrap.innerHTML = '<p>Could not load prayer wall.</p>'; }
+}
+loadWall();
+</script>
+</body>
+</html>

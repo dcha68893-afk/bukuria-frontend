@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Become a Member — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="auth-shell">
+  <form id="regForm" class="app-form">
+    <h2 class="section-title" style="text-align:center;">Create Your Account</h2>
+    <div id="regAlert"></div>
+    <div class="form-row">
+      <div class="form-group"><label>First Name</label><input type="text" id="rFirst" required></div>
+      <div class="form-group"><label>Last Name</label><input type="text" id="rLast" required></div>
+    </div>
+    <div class="form-group"><label>Email</label><input type="email" id="rEmail" required></div>
+    <div class="form-group"><label>Phone</label><input type="text" id="rPhone"></div>
+    <div class="form-group"><label>Password</label><input type="password" id="rPassword" minlength="6" required></div>
+    <button class="btn btn-primary btn-block" type="submit">Create Account</button>
+    <p style="text-align:center;margin-top:1rem;">Already a member? <a href="login.html">Login</a></p>
+  </form>
+</section>
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+if (Auth.isLoggedIn()) window.location.href = 'dashboard.html';
+document.getElementById('regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('regAlert');
+  try {
+    const res = await Api.auth.register({
+      firstName: document.getElementById('rFirst').value,
+      lastName: document.getElementById('rLast').value,
+      email: document.getElementById('rEmail').value,
+      phone: document.getElementById('rPhone').value,
+      password: document.getElementById('rPassword').value,
+    });
+    Auth.setSession(res.token, res.user);
+    window.location.href = 'dashboard.html';
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+</script>
+</body>
+</html>

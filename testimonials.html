@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Testimonials — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Testimonials</h1><p>Stories of God's faithfulness in our church family.</p></section>
+
+<section class="section container">
+  <button class="btn btn-primary" id="shareBtn">Share Your Testimony</button>
+  <div id="testForm" style="display:none;margin-top:1rem;">
+    <form id="tForm" class="app-form">
+      <div id="tAlert"></div>
+      <div class="form-group"><label>Your Name</label><input type="text" id="tName" required></div>
+      <div class="form-group"><label>Your Testimony</label><textarea id="tContent" required></textarea></div>
+      <button class="btn btn-primary btn-block" type="submit">Submit (pending review)</button>
+    </form>
+  </div>
+</section>
+
+<section class="section container">
+  <div id="testGrid" class="grid grid-2"><p>Loading…</p></div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+document.getElementById('shareBtn').addEventListener('click', () => {
+  document.getElementById('testForm').style.display = 'block';
+});
+document.getElementById('tForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('tAlert');
+  try {
+    await Api.testimonials.create({
+      fullName: document.getElementById('tName').value,
+      content: document.getElementById('tContent').value,
+    });
+    showAlert(alertBox, 'Thank you! Your testimony will appear once approved.', 'success');
+    e.target.reset();
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+
+(async () => {
+  const wrap = document.getElementById('testGrid');
+  try {
+    const { data } = await Api.testimonials.list('?limit=30');
+    wrap.innerHTML = data.length ? data.map(t => `
+      <div class="card"><div class="card-body">
+        ${t.videoUrl ? `<video src="${t.videoUrl}" controls style="width:100%;border-radius:var(--radius);"></video>` : ''}
+        <p>"${t.content}"</p>
+        <p class="card-meta">— ${t.fullName}</p>
+      </div></div>`).join('') : '<p>No testimonials yet.</p>';
+  } catch (e) { wrap.innerHTML = '<p>Could not load testimonials.</p>'; }
+})();
+</script>
+</body>
+</html>

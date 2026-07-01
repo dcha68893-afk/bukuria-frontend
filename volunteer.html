@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volunteer — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Volunteer</h1><p>Use your gifts to serve the church and community.</p></section>
+<section class="section container">
+  <form id="volForm" class="app-form">
+    <div id="volAlert"></div>
+    <div class="form-group"><label>Full Name</label><input type="text" id="vName" required></div>
+    <div class="form-group"><label>Email</label><input type="email" id="vEmail" required></div>
+    <div class="form-group"><label>Phone</label><input type="text" id="vPhone"></div>
+    <div class="form-group">
+      <label>Ministry Interest</label>
+      <select id="vMinistry">
+        <option>Children's Ministry</option><option>Youth Ministry</option><option>Women's Ministry</option>
+        <option>Men's Ministry</option><option>Worship Ministry</option><option>Missions</option>
+        <option>Prayer Ministry</option><option>Media Ministry</option><option>Small Groups</option><option>Other</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Skills &amp; Interests</label><textarea id="vSkills" placeholder="e.g. graphic design, teaching, music…"></textarea></div>
+    <div class="form-group"><label>Availability</label><input type="text" id="vAvail" placeholder="e.g. weekends, Sunday mornings"></div>
+    <button class="btn btn-primary btn-block" type="submit">Submit</button>
+  </form>
+</section>
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+document.getElementById('volForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('volAlert');
+  try {
+    await Api.volunteers.submit({
+      fullName: document.getElementById('vName').value,
+      email: document.getElementById('vEmail').value,
+      phone: document.getElementById('vPhone').value,
+      ministryInterest: document.getElementById('vMinistry').value,
+      skills: document.getElementById('vSkills').value,
+      availability: document.getElementById('vAvail').value,
+    });
+    showAlert(alertBox, 'Thank you for volunteering! Our ministry leaders will be in touch.', 'success');
+    e.target.reset();
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+</script>
+</body>
+</html>

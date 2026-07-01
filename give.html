@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Give — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Give</h1><p>"Each of you should give what you have decided in your heart to give." 2 Corinthians 9:7</p></section>
+
+<section class="section container">
+  <form id="giveForm" class="app-form">
+    <div id="giveAlert"></div>
+    <div class="form-group">
+      <label>Type of Giving</label>
+      <select id="gType">
+        <option value="tithe">Tithe</option>
+        <option value="offering">Offering</option>
+        <option value="special">Special Donation</option>
+        <option value="building_fund">Building Fund</option>
+        <option value="missions">Missions</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Amount (KES)</label><input type="number" id="gAmount" min="1" required></div>
+    <div class="form-group">
+      <label>Payment Method</label>
+      <select id="gMethod">
+        <option value="mpesa">M-Pesa</option>
+        <option value="card">Card</option>
+        <option value="bank_transfer">Bank Transfer</option>
+        <option value="cash">Cash (recorded at church office)</option>
+      </select>
+    </div>
+    <div id="nonAnonFields">
+      <div class="form-group"><label>Full Name</label><input type="text" id="gName"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="gEmail"></div>
+      <div class="form-group"><label>Phone (for M-Pesa)</label><input type="text" id="gPhone" placeholder="07XXXXXXXX"></div>
+    </div>
+    <div class="form-group form-check"><input type="checkbox" id="gAnon"><label for="gAnon" style="margin:0;">Give anonymously</label></div>
+    <button class="btn btn-primary btn-block" type="submit">Give Now</button>
+    <p style="font-size:.8rem;color:var(--gray);margin-top:.6rem;">
+      M-Pesa and card payments are processed securely. You'll receive a confirmation and downloadable receipt once payment clears.
+    </p>
+  </form>
+
+  <div id="loggedInHistoryLink" style="text-align:center;margin-top:1rem;display:none;">
+    <a href="dashboard.html#giving">View my giving history & receipts →</a>
+  </div>
+</section>
+
+<section class="section container" style="background:var(--gray-light);">
+  <h2 class="section-title">Other Ways to Give</h2>
+  <div class="grid grid-3">
+    <div class="card"><div class="card-body"><h3>Bank Transfer</h3><p>Account Name: Gwikonge PEFA Church<br>Bank: [Your Bank]<br>Account No: [XXXXXXXXXX]</p></div></div>
+    <div class="card"><div class="card-body"><h3>M-Pesa Paybill</h3><p>Paybill: [XXXXXX]<br>Account: Your Name</p></div></div>
+    <div class="card"><div class="card-body"><h3>In Person</h3><p>Give during any service, or visit the church office during office hours.</p></div></div>
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+if (Auth.isLoggedIn()) document.getElementById('loggedInHistoryLink').style.display = 'block';
+
+document.getElementById('gAnon').addEventListener('change', (e) => {
+  document.getElementById('nonAnonFields').style.display = e.target.checked ? 'none' : 'block';
+});
+
+document.getElementById('giveForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('giveAlert');
+  try {
+    const res = await Api.donations.create({
+      type: document.getElementById('gType').value,
+      amount: Number(document.getElementById('gAmount').value),
+      method: document.getElementById('gMethod').value,
+      donorName: document.getElementById('gName').value,
+      donorEmail: document.getElementById('gEmail').value,
+      donorPhone: document.getElementById('gPhone').value,
+      isAnonymous: document.getElementById('gAnon').checked,
+    });
+    showAlert(alertBox, res.message || 'Thank you for your generosity!', 'success');
+    e.target.reset();
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+</script>
+</body>
+</html>

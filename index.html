@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gwikonge PEFA Church — Home</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+
+<section class="page-header" style="text-align:left;display:flex;flex-wrap:wrap;align-items:center;gap:2rem;">
+  <div class="container" style="display:flex;flex-wrap:wrap;align-items:center;gap:2rem;">
+    <div style="flex:1;min-width:280px;">
+      <h1>Welcome to Gwikonge PEFA Church</h1>
+      <p style="margin-bottom:1.2rem;">Proclaiming Christ. Making Disciples. Transforming Lives. Join us as we worship, grow, and serve together.</p>
+      <div style="display:flex;gap:.8rem;flex-wrap:wrap;">
+        <a href="livestream.html" class="btn btn-secondary">Watch Live</a>
+        <a href="give.html" class="btn btn-primary" style="background:#fff;color:var(--primary-dark);">Give</a>
+        <a href="contact.html" class="btn btn-outline" style="border-color:#fff;color:#fff;">Contact Us</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container grid grid-2">
+    <div>
+      <h2 class="section-title">Our Mission</h2>
+      <p>To proclaim the Gospel of Jesus Christ, make disciples, and equip believers to live out their faith in their families, workplaces, and communities.</p>
+    </div>
+    <div>
+      <h2 class="section-title">Our Vision</h2>
+      <p>A Spirit-filled, multi-generational church transforming Gwikonge and beyond through the love and power of Jesus Christ.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="background:var(--gray-light);">
+  <div class="container">
+    <h2 class="section-title">Upcoming Events</h2>
+    <div id="upcomingEvents" class="grid grid-3"><p>Loading events…</p></div>
+    <p style="margin-top:1rem;"><a href="events.html">View all events →</a></p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    <h2 class="section-title">Latest Announcements</h2>
+    <div id="latestAnnouncements" class="grid grid-2"><p>Loading announcements…</p></div>
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+(async () => {
+  const evWrap = document.getElementById('upcomingEvents');
+  try {
+    const { data } = await Api.events.list('?upcoming=true&limit=3');
+    evWrap.innerHTML = data.length ? data.map(ev => `
+      <div class="card">
+        <img src="${ev.image || 'https://placehold.co/400x200?text=Event'}" alt="${ev.title}">
+        <div class="card-body">
+          <h3>${ev.title}</h3>
+          <p class="card-meta">${fmtDate(ev.startDate)} · ${ev.location || ''}</p>
+          <a href="events.html" class="btn btn-outline btn-sm">Details</a>
+        </div>
+      </div>`).join('') : '<p>No upcoming events right now. Check back soon!</p>';
+  } catch (e) { evWrap.innerHTML = `<p>Could not load events.</p>`; }
+
+  const annWrap = document.getElementById('latestAnnouncements');
+  try {
+    const { data } = await Api.announcements.list('?limit=4');
+    annWrap.innerHTML = data.length ? data.map(a => `
+      <div class="card"><div class="card-body">
+        <h3>${a.title}</h3>
+        <p class="card-meta">${fmtDate(a.publishDate || a.createdAt)}</p>
+        <p>${(a.content || '').slice(0, 140)}${a.content && a.content.length > 140 ? '…' : ''}</p>
+      </div></div>`).join('') : '<p>No announcements yet.</p>';
+  } catch (e) { annWrap.innerHTML = `<p>Could not load announcements.</p>`; }
+})();
+</script>
+</body>
+</html>

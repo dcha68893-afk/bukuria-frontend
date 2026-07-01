@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sermons — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Sermons</h1><p>Catch up on the Word. Search by topic, preacher, or date.</p></section>
+
+<section class="section container">
+  <form id="searchForm" class="app-form wide" style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:var(--space-md);">
+    <input type="text" id="searchInput" placeholder="Search by title, preacher, topic, or scripture…" style="flex:1;min-width:220px;padding:.65rem .8rem;border:1px solid var(--gray-light);border-radius:var(--radius);">
+    <button class="btn btn-primary" type="submit">Search</button>
+  </form>
+  <div id="sermonsGrid" class="grid grid-3"><p>Loading sermons…</p></div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+async function loadSermons(search = '') {
+  const wrap = document.getElementById('sermonsGrid');
+  wrap.innerHTML = '<p>Loading sermons…</p>';
+  try {
+    const qs = search ? `?search=${encodeURIComponent(search)}&limit=24` : '?limit=24';
+    const { data } = await Api.sermons.list(qs);
+    wrap.innerHTML = data.length ? data.map(s => `
+      <div class="card">
+        <img src="${s.thumbnailUrl || 'https://placehold.co/400x200?text=Sermon'}" alt="${s.title}">
+        <div class="card-body">
+          <h3>${s.title}</h3>
+          <p class="card-meta">${s.preacher} · ${fmtDate(s.sermonDate)} ${s.series ? '· ' + s.series : ''}</p>
+          <p>${(s.description || '').slice(0, 100)}</p>
+          <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            ${s.videoUrl ? `<a class="btn btn-outline btn-sm" target="_blank" href="${s.videoUrl}" onclick="Api.sermons.view('${s.id}')">Watch</a>` : ''}
+            ${s.audioUrl ? `<a class="btn btn-outline btn-sm" target="_blank" href="${s.audioUrl}" onclick="Api.sermons.download('${s.id}')">Download Audio</a>` : ''}
+          </div>
+        </div>
+      </div>`).join('') : '<p>No sermons found.</p>';
+  } catch (e) { wrap.innerHTML = '<p>Could not load sermons.</p>'; }
+}
+loadSermons();
+document.getElementById('searchForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  loadSermons(document.getElementById('searchInput').value);
+});
+</script>
+</body>
+</html>

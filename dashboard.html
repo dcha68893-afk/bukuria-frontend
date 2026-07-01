@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Account — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>My Account</h1><p id="welcomeMsg"></p></section>
+
+<section class="section container">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="profile">Profile</button>
+    <button class="tab-btn" data-tab="events">My Events</button>
+    <button class="tab-btn" data-tab="giving">Giving History</button>
+    <button class="tab-btn" data-tab="attendance">Attendance</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-profile">
+    <form id="profileForm" class="app-form wide">
+      <div id="profileAlert"></div>
+      <div class="form-row">
+        <div class="form-group"><label>First Name</label><input type="text" id="pFirst"></div>
+        <div class="form-group"><label>Last Name</label><input type="text" id="pLast"></div>
+      </div>
+      <div class="form-group"><label>Phone</label><input type="text" id="pPhone"></div>
+      <div class="form-group"><label>Address</label><input type="text" id="pAddress"></div>
+      <button class="btn btn-primary" type="submit">Save Changes</button>
+    </form>
+    <form id="pwForm" class="app-form wide" style="margin-top:1.5rem;">
+      <h3 style="margin-bottom:1rem;">Change Password</h3>
+      <div id="pwAlert"></div>
+      <div class="form-group"><label>Current Password</label><input type="password" id="pwCurrent" required></div>
+      <div class="form-group"><label>New Password</label><input type="password" id="pwNew" minlength="6" required></div>
+      <button class="btn btn-outline" type="submit">Update Password</button>
+    </form>
+  </div>
+
+  <div class="tab-panel" id="tab-events">
+    <table class="data-table"><thead><tr><th>Event</th><th>Guests</th><th>Status</th><th>Registered</th></tr></thead>
+      <tbody id="eventsBody"><tr><td colspan="4">Loading…</td></tr></tbody></table>
+  </div>
+
+  <div class="tab-panel" id="tab-giving">
+    <table class="data-table"><thead><tr><th>Date</th><th>Type</th><th>Amount</th><th>Method</th><th>Status</th></tr></thead>
+      <tbody id="givingBody"><tr><td colspan="5">Loading…</td></tr></tbody></table>
+  </div>
+
+  <div class="tab-panel" id="tab-attendance">
+    <button class="btn btn-primary btn-sm" id="checkInBtn" style="margin-bottom:1rem;">Check In Today</button>
+    <table class="data-table"><thead><tr><th>Service Date</th><th>Method</th></tr></thead>
+      <tbody id="attendanceBody"><tr><td colspan="2">Loading…</td></tr></tbody></table>
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+if (!Auth.isLoggedIn()) window.location.href = 'login.html';
+const user = Auth.getUser();
+document.getElementById('welcomeMsg').textContent = `Welcome back, ${user.firstName}.`;
+document.getElementById('pFirst').value = user.firstName || '';
+document.getElementById('pLast').value = user.lastName || '';
+document.getElementById('pPhone').value = user.phone || '';
+document.getElementById('pAddress').value = user.address || '';
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+  });
+});
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('profileAlert');
+  try {
+    const res = await Api.auth.updateMe({
+      firstName: document.getElementById('pFirst').value,
+      lastName: document.getElementById('pLast').value,
+      phone: document.getElementById('pPhone').value,
+      address: document.getElementById('pAddress').value,
+    });
+    Auth.setSession(Auth.getToken(), res.user);
+    showAlert(alertBox, 'Profile updated.', 'success');
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+
+document.getElementById('pwForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('pwAlert');
+  try {
+    await Api.auth.changePassword({
+      currentPassword: document.getElementById('pwCurrent').value,
+      newPassword: document.getElementById('pwNew').value,
+    });
+    showAlert(alertBox, 'Password updated.', 'success');
+    e.target.reset();
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+
+document.getElementById('checkInBtn').addEventListener('click', async () => {
+  try {
+    await Api.attendance.checkIn({});
+    loadDashboard();
+  } catch (err) { alert(err.message); }
+});
+
+async function loadDashboard() {
+  try {
+    const { data } = await Api.members.myDashboard();
+    document.getElementById('eventsBody').innerHTML = data.eventRegistrations.length
+      ? data.eventRegistrations.map(r => `<tr><td>${r.eventId}</td><td>${r.numberOfGuests}</td><td><span class="badge badge-${r.status}">${r.status}</span></td><td>${fmtDate(r.createdAt)}</td></tr>`).join('')
+      : '<tr><td colspan="4">No event registrations yet.</td></tr>';
+
+    document.getElementById('givingBody').innerHTML = data.donations.length
+      ? data.donations.map(d => `<tr><td>${fmtDate(d.createdAt)}</td><td>${d.type}</td><td>${fmtMoney(d.amount, d.currency)}</td><td>${d.method}</td><td><span class="badge badge-${d.status}">${d.status}</span></td></tr>`).join('')
+      : '<tr><td colspan="5">No giving history yet.</td></tr>';
+
+    document.getElementById('attendanceBody').innerHTML = data.attendance.length
+      ? data.attendance.map(a => `<tr><td>${fmtDate(a.serviceDate)}</td><td>${a.checkedInVia}</td></tr>`).join('')
+      : '<tr><td colspan="2">No attendance records yet.</td></tr>';
+  } catch (err) { console.error(err); }
+}
+loadDashboard();
+</script>
+</body>
+</html>

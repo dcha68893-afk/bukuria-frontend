@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="stylesheet" href="../css/app.css">
+</head>
+<body>
+<div class="admin-shell">
+  <aside class="admin-sidebar">
+    <h2>PEFA Admin</h2>
+    <nav id="adminNav">
+      <a data-view="overview" class="active">Overview</a>
+      <a data-view="members">Members</a>
+      <a data-view="sermons">Sermons</a>
+      <a data-view="events">Events</a>
+      <a data-view="ministries">Ministries</a>
+      <a data-view="announcements">Announcements</a>
+      <a data-view="prayer">Prayer Requests</a>
+      <a data-view="donations">Donations</a>
+      <a data-view="testimonials">Testimonials</a>
+      <a data-view="gallery">Gallery</a>
+      <a data-view="blog">Blog/Devotionals</a>
+      <a data-view="livestreams">Live Streams</a>
+      <a data-view="contact">Contact Messages</a>
+      <a data-view="volunteers">Volunteers</a>
+      <a data-view="newsletter">Newsletter</a>
+      <a data-view="attendance">Attendance</a>
+    </nav>
+    <a href="#" id="adminLogout" style="display:block;margin-top:2rem;color:#ffb4b4;">Logout</a>
+    <a href="../index.html" style="display:block;margin-top:.5rem;color:#cfe3d6;">← Back to site</a>
+  </aside>
+  <main class="admin-main">
+    <div id="alertBox"></div>
+    <div id="viewContainer"><p>Loading…</p></div>
+  </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

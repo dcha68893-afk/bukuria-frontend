@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="auth-shell">
+  <form id="loginForm" class="app-form">
+    <h2 class="section-title" style="text-align:center;">Member Login</h2>
+    <div id="loginAlert"></div>
+    <div class="form-group"><label>Email</label><input type="email" id="lEmail" required></div>
+    <div class="form-group"><label>Password</label><input type="password" id="lPassword" required></div>
+    <button class="btn btn-primary btn-block" type="submit">Login</button>
+    <p style="text-align:center;margin-top:1rem;">New here? <a href="register.html">Create an account</a></p>
+  </form>
+</section>
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+if (Auth.isLoggedIn()) window.location.href = 'dashboard.html';
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('loginAlert');
+  try {
+    const res = await Api.auth.login({
+      email: document.getElementById('lEmail').value,
+      password: document.getElementById('lPassword').value,
+    });
+    Auth.setSession(res.token, res.user);
+    const isAdmin = ['admin', 'super_admin', 'pastor', 'leader'].includes(res.user.role);
+    window.location.href = isAdmin ? 'admin/index.html' : 'dashboard.html';
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Events — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Church Calendar &amp; Events</h1><p>Conferences, crusades, youth events, prayer meetings, and more.</p></section>
+
+<section class="section container">
+  <div class="pill-nav" id="catFilter">
+    <button data-cat="" class="active">All</button>
+    <button data-cat="conference">Conference</button>
+    <button data-cat="crusade">Crusade</button>
+    <button data-cat="youth">Youth</button>
+    <button data-cat="prayer">Prayer</button>
+    <button data-cat="bible_study">Bible Study</button>
+    <button data-cat="service">Service</button>
+  </div>
+  <div id="eventsGrid" class="grid grid-3"><p>Loading events…</p></div>
+</section>
+
+<!-- Registration modal -->
+<div id="regModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);align-items:center;justify-content:center;z-index:50;">
+  <div style="background:#fff;padding:1.5rem;border-radius:var(--radius);max-width:420px;width:92%;">
+    <h3 id="regEventTitle" style="margin-bottom:1rem;"></h3>
+    <div id="regAlert"></div>
+    <form id="regForm">
+      <input type="hidden" id="regEventId">
+      <div class="form-group"><label>Full Name</label><input type="text" id="regName" required></div>
+      <div class="form-group"><label>Email</label><input type="email" id="regEmail" required></div>
+      <div class="form-group"><label>Phone</label><input type="text" id="regPhone"></div>
+      <div class="form-group"><label>Number of Guests</label><input type="number" id="regGuests" value="0" min="0"></div>
+      <div style="display:flex;gap:.6rem;">
+        <button class="btn btn-primary" type="submit">Register</button>
+        <button class="btn btn-outline" type="button" id="regCancel">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+let currentEvents = [];
+
+async function loadEvents(category = '') {
+  const wrap = document.getElementById('eventsGrid');
+  wrap.innerHTML = '<p>Loading events…</p>';
+  try {
+    const qs = category ? `?category=${category}&limit=30` : '?limit=30';
+    const { data } = await Api.events.list(qs);
+    currentEvents = data;
+    wrap.innerHTML = data.length ? data.map(ev => `
+      <div class="card">
+        <img src="${ev.image || 'https://placehold.co/400x200?text=' + encodeURIComponent(ev.category)}" alt="${ev.title}">
+        <div class="card-body">
+          <h3>${ev.title}</h3>
+          <p class="card-meta">${fmtDateTime(ev.startDate)}${ev.location ? ' · ' + ev.location : ''}</p>
+          <p>${(ev.description || '').slice(0, 100)}</p>
+          ${ev.registrationRequired ? `<button class="btn btn-primary btn-sm" onclick="openReg('${ev.id}')">Register</button>` : ''}
+        </div>
+      </div>`).join('') : '<p>No events found for this category.</p>';
+  } catch (e) { wrap.innerHTML = '<p>Could not load events.</p>'; }
+}
+loadEvents();
+
+document.querySelectorAll('#catFilter button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#catFilter button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadEvents(btn.dataset.cat);
+  });
+});
+
+function openReg(id) {
+  const ev = currentEvents.find(e => e.id === id);
+  document.getElementById('regEventId').value = id;
+  document.getElementById('regEventTitle').textContent = `Register: ${ev.title}`;
+  clearAlert(document.getElementById('regAlert'));
+  document.getElementById('regModal').style.display = 'flex';
+}
+document.getElementById('regCancel').addEventListener('click', () => {
+  document.getElementById('regModal').style.display = 'none';
+});
+document.getElementById('regForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('regAlert');
+  try {
+    await Api.events.register(document.getElementById('regEventId').value, {
+      fullName: document.getElementById('regName').value,
+      email: document.getElementById('regEmail').value,
+      phone: document.getElementById('regPhone').value,
+      numberOfGuests: Number(document.getElementById('regGuests').value || 0),
+    });
+    showAlert(alertBox, 'You are registered! See you there.', 'success');
+    setTimeout(() => { document.getElementById('regModal').style.display = 'none'; }, 1500);
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Devotionals & Blog — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Devotionals &amp; Blog</h1><p>Daily devotionals, Bible studies, and testimonies.</p></section>
+<section class="section container">
+  <div id="blogGrid" class="grid grid-3"><p>Loading…</p></div>
+</section>
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+(async () => {
+  const wrap = document.getElementById('blogGrid');
+  try {
+    const { data } = await Api.blog.list('?limit=30');
+    wrap.innerHTML = data.length ? data.map(b => `
+      <div class="card">
+        <img src="${b.coverImage || 'https://placehold.co/400x200?text=Devotional'}" alt="${b.title}">
+        <div class="card-body">
+          <h3>${b.title}</h3>
+          <p class="card-meta">${b.authorName || ''} · ${fmtDate(b.publishDate || b.createdAt)} · ${b.category}</p>
+          ${b.bibleVerse ? `<p style="font-style:italic;">${b.bibleVerse}</p>` : ''}
+          <p>${(b.content || '').replace(/<[^>]+>/g, '').slice(0, 140)}…</p>
+        </div>
+      </div>`).join('') : '<p>No posts yet.</p>';
+  } catch (e) { wrap.innerHTML = '<p>Could not load posts.</p>'; }
+})();
+</script>
+</body>
+</html>

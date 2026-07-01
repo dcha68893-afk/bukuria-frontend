@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact Us — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Contact Us</h1><p>We'd love to hear from you.</p></section>
+
+<section class="section container grid grid-2">
+  <form id="contactForm" class="app-form wide">
+    <div id="contactAlert"></div>
+    <div class="form-group"><label>Name</label><input type="text" id="cName" required></div>
+    <div class="form-group"><label>Email</label><input type="email" id="cEmail" required></div>
+    <div class="form-group"><label>Phone</label><input type="text" id="cPhone"></div>
+    <div class="form-group"><label>Subject</label><input type="text" id="cSubject"></div>
+    <div class="form-group"><label>Message</label><textarea id="cMessage" required></textarea></div>
+    <button class="btn btn-primary btn-block" type="submit">Send Message</button>
+  </form>
+  <div>
+    <h2 class="section-title">Get in Touch</h2>
+    <p><strong>Phone:</strong> +254 700 000000</p>
+    <p><strong>Email:</strong> info@gwikongepefa.org</p>
+    <p><strong>Address:</strong> Gwikonge, Kenya</p>
+    <p><strong>Office Hours:</strong> Mon–Fri, 9:00 AM – 5:00 PM</p>
+    <div style="margin-top:1rem;display:flex;gap:.8rem;">
+      <a href="#">Facebook</a><a href="#">Instagram</a><a href="#">YouTube</a>
+    </div>
+    <div style="margin-top:1rem;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);">
+      <iframe title="map" src="https://www.google.com/maps?q=Gwikonge,Kenya&output=embed" width="100%" height="260" style="border:0;" loading="lazy"></iframe>
+    </div>
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+document.getElementById('contactForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const alertBox = document.getElementById('contactAlert');
+  try {
+    const res = await Api.contact.submit({
+      name: document.getElementById('cName').value,
+      email: document.getElementById('cEmail').value,
+      phone: document.getElementById('cPhone').value,
+      subject: document.getElementById('cSubject').value,
+      message: document.getElementById('cMessage').value,
+    });
+    showAlert(alertBox, res.message || 'Message sent!', 'success');
+    e.target.reset();
+  } catch (err) { showAlert(alertBox, err.message); }
+});
+</script>
+</body>
+</html>

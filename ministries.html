@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ministries — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Our Ministries</h1><p>Find a community to grow, serve, and belong.</p></section>
+
+<section class="section container">
+  <div id="ministriesGrid" class="grid grid-3"><p>Loading ministries…</p></div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+(async () => {
+  const wrap = document.getElementById('ministriesGrid');
+  try {
+    const { data } = await Api.ministries.list();
+    wrap.innerHTML = data.length ? data.map(m => `
+      <div class="card">
+        <img src="${m.image || 'https://placehold.co/400x200?text=' + encodeURIComponent(m.name)}" alt="${m.name}">
+        <div class="card-body">
+          <h3>${m.name}</h3>
+          <p>${m.description || ''}</p>
+          <p class="card-meta">${m.meetingSchedule ? '🕒 ' + m.meetingSchedule : ''}</p>
+          <p class="card-meta">${m.leaderName ? '👤 ' + m.leaderName : ''} ${m.leaderContact ? '· ' + m.leaderContact : ''}</p>
+        </div>
+      </div>`).join('') : '<p>No ministries listed yet.</p>';
+  } catch (e) { wrap.innerHTML = '<p>Could not load ministries.</p>'; }
+})();
+</script>
+</body>
+</html>

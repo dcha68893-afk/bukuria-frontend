@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Streaming — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Live Streaming</h1><p>Join us live, wherever you are.</p></section>
+
+<section class="section container">
+  <div id="liveBlock"><p>Checking for a live service…</p></div>
+</section>
+
+<section class="section container" style="background:var(--gray-light);">
+  <h2 class="section-title">Previous Broadcasts</h2>
+  <div id="pastStreams" class="grid grid-3"><p>Loading…</p></div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+function countdownTo(dateStr, el) {
+  function tick() {
+    const diff = new Date(dateStr) - new Date();
+    if (diff <= 0) { el.textContent = 'Starting any moment…'; return; }
+    const h = Math.floor(diff / 3.6e6), m = Math.floor((diff % 3.6e6) / 6e4), s = Math.floor((diff % 6e4) / 1000);
+    el.textContent = `${h}h ${m}m ${s}s`;
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+(async () => {
+  const liveWrap = document.getElementById('liveBlock');
+  const pastWrap = document.getElementById('pastStreams');
+  try {
+    const { data } = await Api.livestreams.list('?limit=20');
+    const live = data.find(s => s.status === 'live');
+    const scheduled = data.filter(s => s.status === 'scheduled').sort((a,b) => new Date(a.scheduledStart) - new Date(b.scheduledStart))[0];
+    const ended = data.filter(s => s.status === 'ended');
+
+    if (live) {
+      liveWrap.innerHTML = `<h2 style="color:var(--accent);">🔴 LIVE NOW: ${live.title}</h2>
+        <div style="aspect-ratio:16/9;max-width:800px;margin-top:1rem;"><iframe src="${live.streamUrl}" width="100%" height="100%" allowfullscreen style="border:0;border-radius:var(--radius);"></iframe></div>`;
+    } else if (scheduled) {
+      liveWrap.innerHTML = `<h2>Next service: ${scheduled.title}</h2>
+        <p>${fmtDateTime(scheduled.scheduledStart)}</p>
+        <p style="font-size:2rem;font-weight:700;color:var(--primary);" id="countdown"></p>`;
+      countdownTo(scheduled.scheduledStart, document.getElementById('countdown'));
+    } else {
+      liveWrap.innerHTML = '<p>No live service scheduled right now. Check back soon!</p>';
+    }
+
+    pastWrap.innerHTML = ended.length ? ended.map(s => `
+      <div class="card"><div class="card-body">
+        <h3>${s.title}</h3>
+        <p class="card-meta">${fmtDate(s.scheduledStart)}</p>
+        ${s.recordingUrl ? `<a class="btn btn-outline btn-sm" href="${s.recordingUrl}" target="_blank">Watch Recording</a>` : ''}
+      </div></div>`).join('') : '<p>No past broadcasts yet.</p>';
+  } catch (e) {
+    liveWrap.innerHTML = '<p>Could not load live stream info.</p>';
+    pastWrap.innerHTML = '';
+  }
+})();
+</script>
+</body>
+</html>

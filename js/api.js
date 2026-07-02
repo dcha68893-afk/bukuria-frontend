@@ -119,6 +119,7 @@ const Api = {
   },
   donations: {
     create: (p) => apiRequest('/donations', { method: 'POST', body: p }),
+    mpesaStatus: (id) => apiRequest(`/donations/${id}/mpesa-status`),
     myHistory: () => apiRequest('/donations/my-history', { auth: true }),
     receipt: (id) => apiRequest(`/donations/${id}/receipt`, { auth: true }),
     list: (qs='') => apiRequest(`/donations${qs}`, { auth: true }),

@@ -69,14 +69,37 @@ document.getElementById('gAnon').addEventListener('change', (e) => {
   document.getElementById('nonAnonFields').style.display = e.target.checked ? 'none' : 'block';
 });
 
+function pollMpesaStatus(donationId, alertBox, attempt = 0) {
+  // Polls every 3s for up to ~90s while the donor enters their M-Pesa PIN.
+  if (attempt > 30) {
+    showAlert(alertBox, 'Still waiting for payment confirmation. If you completed it on your phone, your receipt will appear in your giving history shortly.', 'success');
+    return;
+  }
+  setTimeout(async () => {
+    try {
+      const { status, receiptNumber } = await Api.donations.mpesaStatus(donationId);
+      if (status === 'completed') {
+        showAlert(alertBox, `✅ Payment received! Receipt: ${receiptNumber}`, 'success');
+      } else if (status === 'failed') {
+        showAlert(alertBox, 'Payment was not completed. You can try again.', 'error');
+      } else {
+        pollMpesaStatus(donationId, alertBox, attempt + 1);
+      }
+    } catch {
+      pollMpesaStatus(donationId, alertBox, attempt + 1);
+    }
+  }, 3000);
+}
+
 document.getElementById('giveForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   const alertBox = document.getElementById('giveAlert');
+  const method = document.getElementById('gMethod').value;
   try {
     const res = await Api.donations.create({
       type: document.getElementById('gType').value,
       amount: Number(document.getElementById('gAmount').value),
-      method: document.getElementById('gMethod').value,
+      method,
       donorName: document.getElementById('gName').value,
       donorEmail: document.getElementById('gEmail').value,
       donorPhone: document.getElementById('gPhone').value,
@@ -84,6 +107,9 @@ document.getElementById('giveForm').addEventListener('submit', async (e) => {
     });
     showAlert(alertBox, res.message || 'Thank you for your generosity!', 'success');
     e.target.reset();
+    if (method === 'mpesa' && res.data?.id) {
+      pollMpesaStatus(res.data.id, alertBox);
+    }
   } catch (err) { showAlert(alertBox, err.message); }
 });
 </script>

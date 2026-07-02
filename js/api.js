@@ -263,3 +263,56 @@ async function loadNotificationBell(elId) {
     </a>`;
   } catch {}
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  BACK BUTTON + BREADCRUMB HELPERS
+// ════════════════════════════════════════════════════════════════════════
+
+/**
+ * Navigate back using browser history, or fall back to home.
+ */
+function goBack() {
+  if (window.history.length > 1) {
+    window.history.back();
+  } else {
+    window.location.href = 'index.html';
+  }
+}
+
+/**
+ * Inject a ← Back button into any element with id="backBtn".
+ * Call this at the top of each page's <script> block, or it is
+ * called automatically by the page-header injection below.
+ */
+function renderBackButton(containerId = 'backBtn') {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  // Don't show on home page
+  const page = window.location.pathname.split('/').pop();
+  if (!page || page === 'index.html') return;
+  el.innerHTML = `<button class="back-btn" onclick="goBack()">← Back</button>`;
+}
+
+/**
+ * Build a simple breadcrumb from the page title and optional parent label.
+ * Usage: renderBreadcrumb([{label:'Home',href:'index.html'}, {label:'Sermons'}])
+ */
+function renderBreadcrumb(items, containerId = 'breadcrumb') {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = '<nav class="breadcrumb" aria-label="Breadcrumb">' +
+    items.map((item, i) => {
+      const isLast = i === items.length - 1;
+      return isLast
+        ? `<span>${escHtml(item.label)}</span>`
+        : `<a href="${item.href}">${escHtml(item.label)}</a><span>›</span>`;
+    }).join('') +
+    '</nav>';
+}
+
+// Auto-inject back button after DOM loads (for any page that has id="backBtn")
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => renderBackButton());
+} else {
+  renderBackButton();
+}

@@ -1,8 +1,24 @@
 /**
  * Gwikonge PEFA Church — Frontend API client.
- * Edit API_BASE_URL before deploying to production.
+ *
+ * API_BASE_URL resolution order:
+ *   1. window.PEFA_API_BASE_URL, if some page sets it before this script loads.
+ *   2. Production backend (https://bukukia-backend.onrender.com/api) — the default,
+ *      so the deployed site always talks to the deployed backend.
+ *   3. Falls back to http://localhost:5000/api ONLY when this file is itself being
+ *      served from localhost/127.0.0.1 (i.e. a developer running the frontend locally
+ *      with `npx serve .` / `python -m http.server`), so local development still works
+ *      without any manual edits.
  */
-const API_BASE_URL = window.PEFA_API_BASE_URL || 'http://localhost:5000/api';
+const PEFA_PRODUCTION_API_URL = 'https://bukukia-backend.onrender.com/api';
+const PEFA_LOCAL_API_URL = 'http://localhost:5000/api';
+const API_BASE_URL = window.PEFA_API_BASE_URL || (
+  ['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? PEFA_LOCAL_API_URL
+    : PEFA_PRODUCTION_API_URL
+);
+// Origin only (no /api suffix) — used for building links to uploaded files, e.g. library.html.
+const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, '');
 
 // ---- Auth ----
 const Auth = {

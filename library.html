@@ -70,7 +70,7 @@ async function downloadDoc(id, title) {
   try {
     const { fileUrl } = await Api.library.download(id);
     const a = document.createElement('a');
-    a.href = fileUrl.startsWith('http') ? fileUrl : 'http://localhost:5000' + fileUrl;
+    a.href = fileUrl.startsWith('http') ? fileUrl : API_ORIGIN + fileUrl;
     a.download = title; a.target = '_blank';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
   } catch(e) { alert(e.message); }

@@ -25,13 +25,24 @@ frontend/
 
 ## Configure the API URL
 
-Open `js/api.js` and change:
+`js/api.js` now resolves the backend URL automatically — no manual edit needed for
+normal deployment:
 
 ```js
-const API_BASE_URL = (window.PEFA_API_BASE_URL) || 'http://localhost:5000/api';
+const API_BASE_URL = window.PEFA_API_BASE_URL || (
+  ['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? 'http://localhost:5000/api'
+    : 'https://bukukia-backend.onrender.com/api'
+);
 ```
 
-For production, set `window.PEFA_API_BASE_URL` before `api.js` loads (e.g. add a small inline `<script>` in each page's `<head>`), or just edit the fallback URL directly to your deployed backend, e.g. `https://api.gwikongepefa.org/api`.
+- Deployed at `https://bukuria-frontend.onrender.com` → automatically talks to
+  `https://bukukia-backend.onrender.com/api`.
+- Run locally via `npx serve .` / `python3 -m http.server` on `localhost` →
+  automatically talks to `http://localhost:5000/api`.
+- To point at a different backend (e.g. a staging server), set
+  `window.PEFA_API_BASE_URL = 'https://your-backend.example.com/api';` in an inline
+  `<script>` before `js/api.js` loads — this always takes priority.
 
 ## Running locally
 

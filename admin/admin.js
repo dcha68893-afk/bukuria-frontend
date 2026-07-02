@@ -14,6 +14,23 @@ const viewContainer = document.getElementById('viewContainer');
 const viewTitle    = document.getElementById('viewTitle');
 const globalAlert  = document.getElementById('globalAlert');
 
+// ---- Role-scoped navigation: hide sections the current role can't act on. ----
+// Leaders see People / Events & Care / Ministries / Gallery / Testimonials — the
+// areas where they actually have permission to do something. Pastor+ see everything.
+document.querySelectorAll('#adminNav a[data-view]').forEach(a => {
+  const minRole = a.dataset.minrole;
+  if (minRole && !Auth.isAtLeast(minRole)) a.remove();
+});
+// Hide any nav-group heading left with no links under it.
+document.querySelectorAll('#adminNav .nav-group').forEach(heading => {
+  let el = heading.nextElementSibling, hasLinks = false;
+  while (el && !el.classList.contains('nav-group')) {
+    if (el.matches('a[data-view]')) hasLinks = true;
+    el = el.nextElementSibling;
+  }
+  if (!hasLinks) heading.style.display = 'none';
+});
+
 document.querySelectorAll('#adminNav a[data-view]').forEach(a => {
   a.addEventListener('click', () => {
     document.querySelectorAll('#adminNav a').forEach(x => x.classList.remove('active'));
@@ -131,6 +148,11 @@ async function renderMembers() {
   const { data } = await Api.members.list('?limit=200');
   const canEdit  = Auth.isAdmin();
   const isSuperAdmin = Auth.hasRole('super_admin');
+  const canAssignMinistry = Auth.isAtLeast('pastor'); // pastors+ decide who leads which ministry
+  let ministries = [];
+  if (canAssignMinistry) {
+    try { ministries = (await Api.ministries.list('?limit=100')).data; } catch {}
+  }
 
   viewContainer.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem;">
@@ -142,7 +164,7 @@ async function renderMembers() {
     <table class="data-table" id="memberTable">
       <thead><tr>
         <th>Name</th><th>Email</th><th>Phone</th>
-        <th>Role</th><th>Membership</th><th>Joined</th>
+        <th>Role</th>${canAssignMinistry ? '<th>Ministry (if leader)</th>' : ''}<th>Membership</th><th>Joined</th>
         ${canEdit ? '<th>Actions</th>' : ''}
       </tr></thead>
       <tbody>
@@ -164,6 +186,14 @@ async function renderMembers() {
                 </select>`
               : `<span class="badge badge-new">${m.role}</span>`}
           </td>
+          ${canAssignMinistry ? `<td>
+              ${m.role === 'leader'
+                ? `<select class="ministrySelect" data-id="${m.id}">
+                    <option value="">— none —</option>
+                    ${ministries.map(mn => `<option value="${mn.id}" ${m.ministryId===mn.id?'selected':''}>${escHtml(mn.name)}</option>`).join('')}
+                  </select>`
+                : `<span style="color:var(--gray);font-size:.82rem;">n/a</span>`}
+            </td>` : ''}
           <td>
             ${canEdit
               ? `<select class="statusSelect" data-id="${m.id}">
@@ -199,6 +229,7 @@ async function renderMembers() {
         try {
           await Api.members.update(sel.dataset.id, { role: sel.value });
           flash('Role updated.');
+          renderMembers(); // ministry dropdown only shows for role === 'leader', so refresh
         } catch (e) { flash(e.message, 'error'); }
       });
     });
@@ -207,6 +238,16 @@ async function renderMembers() {
         try {
           await Api.members.update(sel.dataset.id, { membershipStatus: sel.value });
           flash('Status updated.');
+        } catch (e) { flash(e.message, 'error'); }
+      });
+    });
+  }
+  if (canAssignMinistry) {
+    document.querySelectorAll('.ministrySelect').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        try {
+          await Api.members.update(sel.dataset.id, { ministryId: sel.value || null });
+          flash('Ministry assignment updated. This leader can now manage that ministry\'s events and page.');
         } catch (e) { flash(e.message, 'error'); }
       });
     });
@@ -443,20 +484,32 @@ async function renderVolSchedules() {
 
 // ========================== EVENTS ==========================
 async function renderEvents() {
-  const { data } = await Api.events.list('?limit=100');
+  const [{ data }, ministriesRes] = await Promise.all([
+    Api.events.list('?limit=100'),
+    Api.ministries.list('?limit=100').catch(() => ({ data: [] })),
+  ]);
+  const ministries = ministriesRes.data || [];
+  const ministryName = (id) => ministries.find(m => m.id === id)?.name || 'Church-wide';
+  const myMinistryId = user.ministryId;
+  const canManage = (ev) => Auth.isAtLeast('pastor') || (user.role === 'leader' && ev.ministryId === myMinistryId);
+
   viewContainer.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
       <h2 class="section-title">Events (${data.length})</h2>
       <button class="btn btn-primary btn-sm" onclick="openEventForm()">+ New Event</button>
     </div>
+    ${user.role === 'leader' && !myMinistryId
+      ? `<div class="alert alert-error">You haven't been assigned to a ministry yet — ask your pastor or admin to assign you one before creating events.</div>`
+      : ''}
     <div id="evFormWrap"></div>
     <div style="overflow-x:auto;">
     <table class="data-table">
-      <thead><tr><th>Title</th><th>Category</th><th>Start</th><th>Location</th><th>Published</th><th>Regs</th><th></th></tr></thead>
+      <thead><tr><th>Title</th><th>Category</th><th>Ministry</th><th>Start</th><th>Location</th><th>Published</th><th>Regs</th><th></th></tr></thead>
       <tbody>
       ${data.map(ev => `<tr>
         <td><strong>${escHtml(ev.title)}</strong></td>
         <td><span class="badge badge-new">${ev.category}</span></td>
+        <td style="font-size:.85rem;">${escHtml(ministryName(ev.ministryId))}</td>
         <td style="font-size:.85rem;">${fmtDate(ev.startDate)}</td>
         <td style="font-size:.85rem;">${escHtml(ev.location||'—')}</td>
         <td>${ev.isPublished ? '✅' : '❌'}</td>
@@ -466,8 +519,10 @@ async function renderEvents() {
             : '—'}
         </td>
         <td style="white-space:nowrap;">
-          <button class="btn btn-sm btn-outline" onclick='openEventForm(${JSON.stringify(ev).replace(/'/g,"&#39;")})'>Edit</button>
-          ${Auth.isAdmin()
+          ${canManage(ev)
+            ? `<button class="btn btn-sm btn-outline" onclick='openEventForm(${JSON.stringify(ev).replace(/'/g,"&#39;")})'>Edit</button>`
+            : `<span style="color:var(--gray);font-size:.8rem;" title="Belongs to another ministry">🔒</span>`}
+          ${canManage(ev)
             ? `<button class="btn btn-sm btn-danger" onclick="deleteEvent('${ev.id}')">Del</button>`
             : ''}
         </td>
@@ -475,10 +530,16 @@ async function renderEvents() {
       </tbody>
     </table></div>
     <div id="regsWrap" style="margin-top:1.5rem;"></div>`;
+
+  window._eventMinistries = ministries; // used by openEventForm
 }
 
 function openEventForm(ev = null) {
   const cats = ['conference','crusade','youth','prayer','bible_study','service','other'];
+  const ministries = window._eventMinistries || [];
+  const isLeader = user.role === 'leader';
+  const myMinistryName = ministries.find(m => m.id === user.ministryId)?.name || '(unassigned)';
+
   document.getElementById('evFormWrap').innerHTML = `
     <form id="evForm" class="app-form wide" style="margin-bottom:1.5rem;">
       <h3>${ev ? 'Edit' : 'New'} Event</h3>
@@ -491,6 +552,18 @@ function openEventForm(ev = null) {
         </div>
       </div>
       <div class="form-row">
+        <div class="form-group"><label>Ministry</label>
+          ${isLeader
+            ? `<input value="${escHtml(myMinistryName)}" disabled title="Leaders can only create events for their own ministry">`
+            : `<select name="ministryId">
+                <option value="">Church-wide (no specific ministry)</option>
+                ${ministries.map(m => `<option value="${m.id}" ${ev?.ministryId===m.id?'selected':''}>${escHtml(m.name)}</option>`).join('')}
+              </select>`}
+        </div>
+        <div class="form-group"><label>Location</label>
+          <input name="location" value="${escHtml(ev?.location||'')}"></div>
+      </div>
+      <div class="form-row">
         <div class="form-group"><label>Start Date/Time *</label>
           <input type="datetime-local" name="startDate" required
             value="${ev?.startDate ? new Date(ev.startDate).toISOString().slice(0,16) : ''}">
@@ -501,13 +574,11 @@ function openEventForm(ev = null) {
         </div>
       </div>
       <div class="form-row">
-        <div class="form-group"><label>Location</label>
-          <input name="location" value="${escHtml(ev?.location||'')}"></div>
         <div class="form-group"><label>Capacity (blank = unlimited)</label>
           <input type="number" name="capacity" value="${ev?.capacity||''}"></div>
+        <div class="form-group"><label>Cover Image URL</label>
+          <input name="image" value="${escHtml(ev?.image||'')}"></div>
       </div>
-      <div class="form-group"><label>Cover Image URL</label>
-        <input name="image" value="${escHtml(ev?.image||'')}"></div>
       <div class="form-group"><label>Description</label>
         <textarea name="description">${escHtml(ev?.description||'')}</textarea></div>
       <div style="display:flex;gap:1.5rem;margin:.6rem 0;">
@@ -521,7 +592,7 @@ function openEventForm(ev = null) {
         </label>
       </div>
       <div style="display:flex;gap:.5rem;">
-        <button class="btn btn-primary" type="submit">${ev ? 'Save Changes' : 'Create Event'}</button>
+        <button class="btn btn-primary" type="submit" ${isLeader && !user.ministryId ? 'disabled' : ''}>${ev ? 'Save Changes' : 'Create Event'}</button>
         <button class="btn btn-outline" type="button"
           onclick="document.getElementById('evFormWrap').innerHTML=''">Cancel</button>
       </div>
@@ -538,6 +609,9 @@ function openEventForm(ev = null) {
       registrationRequired: f.registrationRequired.checked,
       isPublished: f.isPublished.checked,
     };
+    if (!isLeader && f.ministryId) payload.ministryId = f.ministryId.value || null;
+    // For leaders, ministryId is intentionally omitted — the backend forces it to
+    // their own ministry regardless of what's sent.
     try {
       ev ? await Api.events.update(ev.id, payload) : await Api.events.create(payload);
       flash('Event saved.'); renderEvents();
@@ -1001,6 +1075,9 @@ const ministryCfg = {
     {k:'description',type:'textarea',label:'Description'},
     {k:'isActive',type:'checkbox',label:'Active'},
   ],
+  // Only pastors+ can create new ministries; a leader may only edit the one they lead.
+  canCreate: () => Auth.isAtLeast('pastor'),
+  canEditItem: (item) => Auth.isAtLeast('pastor') || item.id === user.ministryId,
 };
 const announcementCfg = {
   title: 'Announcements', api: Api.announcements,
@@ -1110,10 +1187,12 @@ let _cfg = null;
 async function renderCrud(config) {
   _cfg = config;
   const { data } = await config.api.list('?limit=200');
+  const canCreate = config.canCreate ? config.canCreate() : true;
+  const canEditItem = config.canEditItem || (() => true);
   viewContainer.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
       <h2 class="section-title">${config.title} (${data.length})</h2>
-      <button class="btn btn-primary btn-sm" onclick="openCrudForm()">+ Add New</button>
+      ${canCreate ? `<button class="btn btn-primary btn-sm" onclick="openCrudForm()">+ Add New</button>` : ''}
     </div>
     <div id="crudFormWrap"></div>
     <div style="overflow-x:auto;">
@@ -1132,10 +1211,12 @@ async function renderCrud(config) {
                 : escHtml(String(item[key] ?? '')))
           }</td>`).join('')}
         <td style="white-space:nowrap;">
-          <button class="btn btn-sm btn-outline"
-            onclick='openCrudForm(${JSON.stringify(item).replace(/'/g,"&#39;")})'>Edit</button>
-          <button class="btn btn-sm btn-danger"
-            onclick="deleteCrudItem('${item.id}')">Delete</button>
+          ${canEditItem(item)
+            ? `<button class="btn btn-sm btn-outline"
+                onclick='openCrudForm(${JSON.stringify(item).replace(/'/g,"&#39;")})'>Edit</button>
+              <button class="btn btn-sm btn-danger"
+                onclick="deleteCrudItem('${item.id}')">Delete</button>`
+            : `<span style="color:var(--gray);font-size:.8rem;" title="Not your ministry">🔒</span>`}
         </td>
       </tr>`).join('')}
       </tbody>

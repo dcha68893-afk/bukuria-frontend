@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Book a Service — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Book a Church Service</h1><p>Request baptism, wedding, counseling, and more. A pastor will contact you to confirm.</p></section>
+
+<section class="section container">
+  <!-- Service type selector -->
+  <div class="booking-tabs">
+    <div class="booking-tab active" data-type="baptism"><span class="icon">💧</span>Baptism</div>
+    <div class="booking-tab" data-type="wedding"><span class="icon">💍</span>Wedding</div>
+    <div class="booking-tab" data-type="counseling"><span class="icon">🕊</span>Counseling</div>
+    <div class="booking-tab" data-type="funeral"><span class="icon">🌹</span>Funeral</div>
+    <div class="booking-tab" data-type="child_dedication"><span class="icon">👶</span>Child Dedication</div>
+    <div class="booking-tab" data-type="new_visitor"><span class="icon">🤝</span>New Visitor</div>
+    <div class="booking-tab" data-type="discipleship"><span class="icon">📖</span>Discipleship</div>
+  </div>
+
+  <form id="bookingForm" class="app-form">
+    <div id="bookingAlert"></div>
+    <input type="hidden" id="bookingType" value="baptism">
+
+    <div class="form-row">
+      <div class="form-group"><label>Full Name *</label><input type="text" id="bName" required></div>
+      <div class="form-group"><label>Phone *</label><input type="tel" id="bPhone" required></div>
+    </div>
+    <div class="form-group"><label>Email</label><input type="email" id="bEmail"></div>
+    <div class="form-group"><label>Preferred Date</label><input type="date" id="bDate" min="${new Date().toISOString().slice(0,10)}"></div>
+
+    <!-- Wedding / Child Dedication extras -->
+    <div id="partnerFields" style="display:none;">
+      <div class="form-row">
+        <div class="form-group"><label>Partner / Child's Name</label><input type="text" id="bPartnerName"></div>
+        <div class="form-group"><label>Partner's Phone</label><input type="tel" id="bPartnerPhone"></div>
+      </div>
+    </div>
+
+    <div class="form-group"><label>Additional Notes</label>
+      <textarea id="bNotes" placeholder="Share any details that will help us prepare for your service…"></textarea>
+    </div>
+
+    <button class="btn btn-primary btn-block" type="submit">Submit Request</button>
+    <p style="font-size:.85rem;color:var(--gray);margin-top:.5rem;text-align:center;">
+      All bookings are subject to pastor confirmation. We will contact you within 2 business days.
+    </p>
+  </form>
+</section>
+
+<!-- What to expect -->
+<section class="section" style="background:var(--gray-light);">
+  <div class="container">
+    <h2 class="section-title">What Happens Next?</h2>
+    <div class="grid grid-3">
+      <div class="card"><div class="card-body"><h3>1. Submit</h3><p>Fill in the form above with your preferred date and any details.</p></div></div>
+      <div class="card"><div class="card-body"><h3>2. Confirmation Call</h3><p>A pastor or ministry leader will contact you within 2 business days.</p></div></div>
+      <div class="card"><div class="card-body"><h3>3. Your Service</h3><p>We prepare everything and walk with you through your special occasion.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+document.getElementById('bDate').min = new Date().toISOString().slice(0,10);
+
+const partnerTypes = ['wedding','child_dedication'];
+document.querySelectorAll('.booking-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.booking-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('bookingType').value = tab.dataset.type;
+    document.getElementById('partnerFields').style.display = partnerTypes.includes(tab.dataset.type) ? 'block' : 'none';
+  });
+});
+
+document.getElementById('bookingForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const alertBox = document.getElementById('bookingAlert');
+  try {
+    const res = await Api.bookings.submit({
+      type: document.getElementById('bookingType').value,
+      fullName: document.getElementById('bName').value,
+      phone: document.getElementById('bPhone').value,
+      email: document.getElementById('bEmail').value,
+      preferredDate: document.getElementById('bDate').value || null,
+      partnerName: document.getElementById('bPartnerName').value,
+      partnerPhone: document.getElementById('bPartnerPhone').value,
+      notes: document.getElementById('bNotes').value,
+    });
+    showAlert(alertBox, '✅ ' + (res.message || 'Request submitted! We will contact you soon.'), 'success');
+    e.target.reset();
+    document.querySelectorAll('.booking-tab').forEach((t,i) => t.classList.toggle('active', i===0));
+    document.getElementById('bookingType').value = 'baptism';
+  } catch(err) { showAlert(alertBox, err.message); }
+});
+</script>
+</body>
+</html>

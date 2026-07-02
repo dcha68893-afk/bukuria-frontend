@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Cell Groups — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Cell Groups</h1><p>Grow in faith through close-knit fellowship in your neighbourhood.</p></section>
+
+<section class="section container">
+  <div id="groupsGrid" class="grid grid-3"><p>Loading cell groups…</p></div>
+</section>
+
+<section class="section" style="background:var(--gray-light);">
+  <div class="container" style="max-width:600px;">
+    <h2 class="section-title">Can't Find a Group Near You?</h2>
+    <p>Contact us and we will connect you with the cell group coordinator, or we may start a new group in your area.</p>
+    <a href="contact.html" class="btn btn-primary" style="margin-top:1rem;">Contact Us</a>
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+(async () => {
+  const wrap = document.getElementById('groupsGrid');
+  try {
+    const { data } = await Api.cellGroups.list();
+    if (!data.length) { wrap.innerHTML = '<p>No cell groups listed yet. Check back soon!</p>'; return; }
+    wrap.innerHTML = data.map(g => `
+      <div class="card"><div class="card-body">
+        <h3>${escHtml(g.name)}</h3>
+        <p class="card-meta">📍 ${escHtml(g.area || '')}</p>
+        <p class="card-meta">👤 Leader: ${escHtml(g.leaderName || 'TBA')}</p>
+        <p class="card-meta">🕒 ${escHtml(g.meetingDay || '')} at ${escHtml(g.meetingTime || '')} — ${escHtml(g.venue || '')}</p>
+        <p>${escHtml(g.description || '')}</p>
+        ${Auth.isLoggedIn()
+          ? `<button class="btn btn-primary btn-sm" onclick="joinGroup('${g.id}',this)">Join This Group</button>`
+          : `<a href="login.html" class="btn btn-outline btn-sm">Login to Join</a>`}
+      </div></div>`).join('');
+  } catch { wrap.innerHTML = '<p>Could not load cell groups.</p>'; }
+})();
+
+async function joinGroup(id, btn) {
+  try {
+    const { alreadyMember } = await Api.cellGroups.join(id);
+    btn.textContent = alreadyMember ? '✅ Already a member' : '✅ Joined!';
+    btn.disabled = true;
+  } catch(e) { alert(e.message); }
+}
+</script>
+</body>
+</html>

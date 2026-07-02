@@ -50,3 +50,13 @@
     });
   }
 </script>
+
+<script>
+// Language switcher: add buttons anywhere with class lang-btn and data-lang attribute
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => i18n.setLanguage(btn.dataset.lang));
+    if (btn.dataset.lang === i18n.getLanguage()) btn.classList.add('active');
+  });
+});
+</script>

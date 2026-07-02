@@ -1,41 +1,38 @@
 /**
  * Gwikonge PEFA Church — Frontend API client.
- * Centralizes all calls to the backend REST API + auth/token handling.
- * Set API_BASE_URL below to your deployed backend URL before going live.
+ * Edit API_BASE_URL before deploying to production.
  */
-const API_BASE_URL = (window.PEFA_API_BASE_URL) || 'http://localhost:5000/api';
+const API_BASE_URL = window.PEFA_API_BASE_URL || 'http://localhost:5000/api';
 
+// ---- Auth ----
 const Auth = {
   TOKEN_KEY: 'pefa_token',
   USER_KEY: 'pefa_user',
-
   getToken() { return localStorage.getItem(this.TOKEN_KEY); },
-  getUser() {
-    const raw = localStorage.getItem(this.USER_KEY);
-    return raw ? JSON.parse(raw) : null;
-  },
+  getUser() { try { return JSON.parse(localStorage.getItem(this.USER_KEY)); } catch { return null; } },
   setSession(token, user) {
     localStorage.setItem(this.TOKEN_KEY, token);
     localStorage.setItem(this.USER_KEY, JSON.stringify(user));
   },
-  clearSession() {
-    localStorage.removeItem(this.TOKEN_KEY);
-    localStorage.removeItem(this.USER_KEY);
-  },
+  clearSession() { localStorage.removeItem(this.TOKEN_KEY); localStorage.removeItem(this.USER_KEY); },
   isLoggedIn() { return !!this.getToken(); },
-  hasRole(...roles) {
+  hasRole(...roles) { const u = this.getUser(); return u && roles.includes(u.role); },
+  isAtLeast(minRole) {
+    const rank = { member: 0, leader: 1, pastor: 2, admin: 3, super_admin: 4 };
     const u = this.getUser();
-    return u && roles.includes(u.role);
+    return u && (rank[u.role] ?? -1) >= (rank[minRole] ?? 99);
   },
+  isStaff() { return this.isAtLeast('leader'); },
+  isAdmin() { return this.isAtLeast('admin'); },
 };
 
 async function apiRequest(path, { method = 'GET', body, auth = false, isForm = false } = {}) {
   const headers = {};
   if (!isForm) headers['Content-Type'] = 'application/json';
-  if (auth) {
-    const token = Auth.getToken();
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-  }
+  const token = Auth.getToken();
+  if (auth && token) headers['Authorization'] = `Bearer ${token}`;
+  // Always try to send token if we have one (for staff visibility on lists)
+  if (!auth && token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     method,
@@ -44,10 +41,12 @@ async function apiRequest(path, { method = 'GET', body, auth = false, isForm = f
   });
 
   let data;
-  try { data = await res.json(); } catch (e) { data = {}; }
+  try { data = await res.json(); } catch { data = {}; }
 
   if (!res.ok) {
-    const message = data.message || (data.errors && data.errors[0] && data.errors[0].msg) || 'Something went wrong. Please try again.';
+    const message = data.message
+      || (data.errors && data.errors[0] && data.errors[0].message)
+      || 'Something went wrong. Please try again.';
     const err = new Error(message);
     err.status = res.status;
     err.data = data;
@@ -56,82 +55,82 @@ async function apiRequest(path, { method = 'GET', body, auth = false, isForm = f
   return data;
 }
 
-// Thin wrapper namespaces mirroring backend modules
 const Api = {
   auth: {
-    register: (payload) => apiRequest('/auth/register', { method: 'POST', body: payload }),
-    login: (payload) => apiRequest('/auth/login', { method: 'POST', body: payload }),
+    register: (p) => apiRequest('/auth/register', { method: 'POST', body: p }),
+    login: (p) => apiRequest('/auth/login', { method: 'POST', body: p }),
     me: () => apiRequest('/auth/me', { auth: true }),
-    updateMe: (payload) => apiRequest('/auth/me', { method: 'PUT', body: payload, auth: true }),
-    changePassword: (payload) => apiRequest('/auth/change-password', { method: 'PUT', body: payload, auth: true }),
+    updateMe: (p) => apiRequest('/auth/me', { method: 'PUT', body: p, auth: true }),
+    changePassword: (p) => apiRequest('/auth/change-password', { method: 'PUT', body: p, auth: true }),
   },
   ministries: {
-    list: (qs = '') => apiRequest(`/ministries${qs}`),
+    list: (qs='') => apiRequest(`/ministries${qs}`),
     get: (id) => apiRequest(`/ministries/${id}`),
     create: (p) => apiRequest('/ministries', { method: 'POST', body: p, auth: true }),
-    update: (id, p) => apiRequest(`/ministries/${id}`, { method: 'PUT', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/ministries/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/ministries/${id}`, { method: 'DELETE', auth: true }),
   },
   sermons: {
-    list: (qs = '') => apiRequest(`/sermons${qs}`),
+    list: (qs='') => apiRequest(`/sermons${qs}`),
     get: (id) => apiRequest(`/sermons/${id}`),
     create: (p) => apiRequest('/sermons', { method: 'POST', body: p, auth: true }),
-    update: (id, p) => apiRequest(`/sermons/${id}`, { method: 'PUT', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/sermons/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/sermons/${id}`, { method: 'DELETE', auth: true }),
     view: (id) => apiRequest(`/sermons/${id}/view`, { method: 'POST' }),
     download: (id) => apiRequest(`/sermons/${id}/download`, { method: 'POST' }),
   },
   events: {
-    list: (qs = '') => apiRequest(`/events${qs}`),
+    list: (qs='') => apiRequest(`/events${qs}`),
     get: (id) => apiRequest(`/events/${id}`),
     create: (p) => apiRequest('/events', { method: 'POST', body: p, auth: true }),
-    update: (id, p) => apiRequest(`/events/${id}`, { method: 'PUT', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/events/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/events/${id}`, { method: 'DELETE', auth: true }),
-    register: (id, p) => apiRequest(`/events/${id}/register`, { method: 'POST', body: p, auth: Auth.isLoggedIn() }),
+    register: (id,p) => apiRequest(`/events/${id}/register`, { method: 'POST', body: p }),
     registrations: (id) => apiRequest(`/events/${id}/registrations`, { auth: true }),
   },
   announcements: {
-    list: (qs = '') => apiRequest(`/announcements${qs}`),
+    list: (qs='') => apiRequest(`/announcements${qs}`),
     create: (p) => apiRequest('/announcements', { method: 'POST', body: p, auth: true }),
-    update: (id, p) => apiRequest(`/announcements/${id}`, { method: 'PUT', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/announcements/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/announcements/${id}`, { method: 'DELETE', auth: true }),
   },
   prayer: {
-    submit: (p) => apiRequest('/prayer-requests', { method: 'POST', body: p, auth: Auth.isLoggedIn() }),
+    submit: (p) => apiRequest('/prayer-requests', { method: 'POST', body: p }),
     wall: () => apiRequest('/prayer-requests/wall'),
-    list: (qs = '') => apiRequest(`/prayer-requests${qs}`, { auth: true }),
-    update: (id, p) => apiRequest(`/prayer-requests/${id}`, { method: 'PUT', body: p, auth: true }),
+    list: (qs='') => apiRequest(`/prayer-requests${qs}`, { auth: true }),
+    update: (id,p) => apiRequest(`/prayer-requests/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/prayer-requests/${id}`, { method: 'DELETE', auth: true }),
   },
   donations: {
-    create: (p) => apiRequest('/donations', { method: 'POST', body: p, auth: Auth.isLoggedIn() }),
+    create: (p) => apiRequest('/donations', { method: 'POST', body: p }),
     myHistory: () => apiRequest('/donations/my-history', { auth: true }),
     receipt: (id) => apiRequest(`/donations/${id}/receipt`, { auth: true }),
-    list: (qs = '') => apiRequest(`/donations${qs}`, { auth: true }),
-    confirm: (id, p) => apiRequest(`/donations/${id}/confirm`, { method: 'POST', body: p, auth: true }),
+    list: (qs='') => apiRequest(`/donations${qs}`, { auth: true }),
+    confirm: (id,p) => apiRequest(`/donations/${id}/confirm`, { method: 'POST', body: p, auth: true }),
   },
   testimonials: {
-    list: (qs = '') => apiRequest(`/testimonials${qs}`),
-    create: (p) => apiRequest('/testimonials', { method: 'POST', body: p, auth: true }),
-    update: (id, p) => apiRequest(`/testimonials/${id}`, { method: 'PUT', body: p, auth: true }),
+    list: (qs='') => apiRequest(`/testimonials${qs}`),
+    create: (p) => apiRequest('/testimonials', { method: 'POST', body: p }),
+    update: (id,p) => apiRequest(`/testimonials/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/testimonials/${id}`, { method: 'DELETE', auth: true }),
   },
   gallery: {
-    list: (qs = '') => apiRequest(`/gallery${qs}`),
+    list: (qs='') => apiRequest(`/gallery${qs}`),
     create: (p) => apiRequest('/gallery', { method: 'POST', body: p, auth: true }),
     remove: (id) => apiRequest(`/gallery/${id}`, { method: 'DELETE', auth: true }),
   },
   blog: {
-    list: (qs = '') => apiRequest(`/blog${qs}`),
+    list: (qs='') => apiRequest(`/blog${qs}`),
     get: (id) => apiRequest(`/blog/${id}`),
     create: (p) => apiRequest('/blog', { method: 'POST', body: p, auth: true }),
-    update: (id, p) => apiRequest(`/blog/${id}`, { method: 'PUT', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/blog/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/blog/${id}`, { method: 'DELETE', auth: true }),
   },
   livestreams: {
-    list: (qs = '') => apiRequest(`/livestreams${qs}`),
+    list: (qs='') => apiRequest(`/livestreams${qs}`),
     create: (p) => apiRequest('/livestreams', { method: 'POST', body: p, auth: true }),
-    update: (id, p) => apiRequest(`/livestreams/${id}`, { method: 'PUT', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/livestreams/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/livestreams/${id}`, { method: 'DELETE', auth: true }),
   },
   contact: {
     submit: (p) => apiRequest('/contact', { method: 'POST', body: p }),
@@ -140,9 +139,14 @@ const Api = {
     remove: (id) => apiRequest(`/contact/${id}`, { method: 'DELETE', auth: true }),
   },
   volunteers: {
-    submit: (p) => apiRequest('/volunteers', { method: 'POST', body: p, auth: Auth.isLoggedIn() }),
-    list: (qs = '') => apiRequest(`/volunteers${qs}`, { auth: true }),
-    update: (id, p) => apiRequest(`/volunteers/${id}`, { method: 'PUT', body: p, auth: true }),
+    submit: (p) => apiRequest('/volunteers', { method: 'POST', body: p }),
+    list: (qs='') => apiRequest(`/volunteers${qs}`, { auth: true }),
+    update: (id,p) => apiRequest(`/volunteers/${id}`, { method: 'PUT', body: p, auth: true }),
+    schedules: {
+      list: (qs='') => apiRequest(`/volunteer-schedules${qs}`, { auth: true }),
+      create: (p) => apiRequest('/volunteer-schedules', { method: 'POST', body: p, auth: true }),
+      update: (id,p) => apiRequest(`/volunteer-schedules/${id}`, { method: 'PUT', body: p, auth: true }),
+    },
   },
   newsletter: {
     subscribe: (p) => apiRequest('/newsletter/subscribe', { method: 'POST', body: p }),
@@ -150,63 +154,112 @@ const Api = {
     list: () => apiRequest('/newsletter', { auth: true }),
   },
   members: {
-    list: (qs = '') => apiRequest(`/members${qs}`, { auth: true }),
+    list: (qs='') => apiRequest(`/members${qs}`, { auth: true }),
     get: (id) => apiRequest(`/members/${id}`, { auth: true }),
-    update: (id, p) => apiRequest(`/members/${id}`, { method: 'PUT', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/members/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/members/${id}`, { method: 'DELETE', auth: true }),
     myDashboard: () => apiRequest('/members/me/dashboard', { auth: true }),
   },
   attendance: {
     checkIn: (p) => apiRequest('/attendance/check-in', { method: 'POST', body: p, auth: true }),
     record: (p) => apiRequest('/attendance', { method: 'POST', body: p, auth: true }),
-    list: (qs = '') => apiRequest(`/attendance${qs}`, { auth: true }),
+    list: (qs='') => apiRequest(`/attendance${qs}`, { auth: true }),
   },
-  dashboard: {
-    stats: () => apiRequest('/dashboard/stats', { auth: true }),
+  notifications: {
+    list: () => apiRequest('/notifications', { auth: true }),
+    markRead: (id) => apiRequest(`/notifications/${id}/read`, { method: 'PUT', auth: true }),
+    markAllRead: () => apiRequest('/notifications/read-all', { method: 'PUT', auth: true }),
+    broadcast: (p) => apiRequest('/notifications/broadcast', { method: 'POST', body: p, auth: true }),
   },
+  leadership: {
+    list: () => apiRequest('/leadership'),
+    create: (p) => apiRequest('/leadership', { method: 'POST', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/leadership/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/leadership/${id}`, { method: 'DELETE', auth: true }),
+  },
+  bible: {
+    today: () => apiRequest('/bible/today'),
+    list: () => apiRequest('/bible'),
+  },
+  bookings: {
+    submit: (p) => apiRequest('/bookings', { method: 'POST', body: p }),
+    list: (qs='') => apiRequest(`/bookings${qs}`, { auth: true }),
+    update: (id,p) => apiRequest(`/bookings/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/bookings/${id}`, { method: 'DELETE', auth: true }),
+  },
+  cellGroups: {
+    list: () => apiRequest('/cell-groups'),
+    join: (id) => apiRequest(`/cell-groups/${id}/join`, { method: 'POST', auth: true }),
+    members: (id) => apiRequest(`/cell-groups/${id}/members`, { auth: true }),
+    create: (p) => apiRequest('/cell-groups', { method: 'POST', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/cell-groups/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/cell-groups/${id}`, { method: 'DELETE', auth: true }),
+  },
+  choir: {
+    list: () => apiRequest('/choir'),
+    create: (p) => apiRequest('/choir', { method: 'POST', body: p, auth: true }),
+    remove: (id) => apiRequest(`/choir/${id}`, { method: 'DELETE', auth: true }),
+  },
+  library: {
+    list: () => apiRequest('/library'),
+    download: (id) => apiRequest(`/library/${id}/download`, { method: 'POST' }),
+    create: (p) => apiRequest('/library', { method: 'POST', body: p, auth: true }),
+    remove: (id) => apiRequest(`/library/${id}`, { method: 'DELETE', auth: true }),
+  },
+  inventory: {
+    list: (qs='') => apiRequest(`/inventory${qs}`, { auth: true }),
+    create: (p) => apiRequest('/inventory', { method: 'POST', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/inventory/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/inventory/${id}`, { method: 'DELETE', auth: true }),
+  },
+  search: (q, limit=5) => apiRequest(`/search?q=${encodeURIComponent(q)}&limit=${limit}`),
+  dashboard: { stats: () => apiRequest('/dashboard/stats', { auth: true }) },
   upload: {
-    file: (formData) => apiRequest('/upload', { method: 'POST', body: formData, auth: true, isForm: true }),
-    profile: (formData) => apiRequest('/upload/profile', { method: 'POST', body: formData, auth: true, isForm: true }),
+    file: (fd) => apiRequest('/upload', { method: 'POST', body: fd, auth: true, isForm: true }),
+    profile: (fd) => apiRequest('/upload/profile', { method: 'POST', body: fd, auth: true, isForm: true }),
+  },
+  qr: {
+    generate: () => apiRequest('/qr/generate', { auth: true }),
+    checkIn: (token) => apiRequest('/qr/checkin', { method: 'POST', body: { token }, auth: true }),
   },
 };
 
-// ---- Small shared UI helpers ----
-function showAlert(container, message, type = 'error') {
-  if (!container) return;
-  container.innerHTML = `<div class="alert alert-${type === 'error' ? 'error' : type}">${message}</div>`;
+// ---- Shared UI helpers ----
+function showAlert(el, msg, type='error') {
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${type==='error'?'error':type}">${msg}</div>`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
-function clearAlert(container) { if (container) container.innerHTML = ''; }
+function clearAlert(el) { if (el) el.innerHTML = ''; }
+function fmtDate(d) { if (!d) return ''; return new Date(d).toLocaleDateString('en-KE',{year:'numeric',month:'short',day:'numeric'}); }
+function fmtDateTime(d) { if (!d) return ''; return new Date(d).toLocaleString('en-KE',{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); }
+function fmtMoney(n, cur='KES') { return `${cur} ${Number(n||0).toLocaleString('en-KE',{minimumFractionDigits:2})}`; }
+function escHtml(s) { return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function fmtDate(d) {
-  if (!d) return '';
-  return new Date(d).toLocaleDateString('en-KE', { year: 'numeric', month: 'short', day: 'numeric' });
-}
-function fmtDateTime(d) {
-  if (!d) return '';
-  return new Date(d).toLocaleString('en-KE', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-function fmtMoney(n, currency = 'KES') {
-  return `${currency} ${Number(n || 0).toLocaleString('en-KE', { minimumFractionDigits: 2 })}`;
-}
-
-// Render the shared site header's auth-aware links (Login / My Account / Logout)
 function renderAuthNav(elId) {
   const el = document.getElementById(elId);
   if (!el) return;
   if (Auth.isLoggedIn()) {
-    const user = Auth.getUser();
-    const isAdmin = ['admin', 'super_admin', 'pastor', 'leader'].includes(user.role);
+    const u = Auth.getUser();
     el.innerHTML = `
-      <a href="dashboard.html">Hi, ${user.firstName}</a>
-      ${isAdmin ? '<a href="admin/index.html">Admin</a>' : ''}
-      <a href="#" id="logoutLink">Logout</a>
-    `;
+      <a href="dashboard.html" style="font-weight:600;">Hi, ${escHtml(u.firstName)}</a>
+      ${Auth.isStaff() ? '<a href="admin/index.html">Admin</a>' : ''}
+      <a href="#" id="logoutLink">Logout</a>`;
     document.getElementById('logoutLink').addEventListener('click', (e) => {
-      e.preventDefault();
-      Auth.clearSession();
-      window.location.href = 'index.html';
+      e.preventDefault(); Auth.clearSession(); window.location.href = 'index.html';
     });
   } else {
-    el.innerHTML = `<a href="login.html">Login</a> <a href="register.html" class="btn btn-primary btn-sm">Join Us</a>`;
+    el.innerHTML = `<a href="login.html">Login</a>&nbsp;<a href="register.html" class="btn btn-primary btn-sm">Join Us</a>`;
   }
+}
+
+async function loadNotificationBell(elId) {
+  const el = document.getElementById(elId);
+  if (!el || !Auth.isLoggedIn()) return;
+  try {
+    const { unreadCount } = await Api.notifications.list();
+    el.innerHTML = `<a href="dashboard.html#notifications" style="position:relative;text-decoration:none;">
+      🔔${unreadCount > 0 ? `<span style="position:absolute;top:-6px;right:-8px;background:var(--accent);color:#fff;border-radius:999px;font-size:.7rem;padding:1px 5px;">${unreadCount}</span>` : ''}
+    </a>`;
+  } catch {}
 }

@@ -1,39 +1,94 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Dashboard — Gwikonge PEFA Church</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Admin — Gwikonge PEFA Church</title>
 <link rel="stylesheet" href="../css/style.css">
 <link rel="stylesheet" href="../css/app.css">
+<style>
+.admin-shell{display:flex;min-height:100vh;}
+.admin-sidebar{width:220px;background:var(--primary-dark);color:#fff;flex-shrink:0;display:flex;flex-direction:column;}
+.admin-sidebar .logo{padding:1.2rem 1rem;font-family:var(--font-heading);font-size:1rem;font-weight:700;border-bottom:1px solid rgba(255,255,255,.12);}
+.admin-sidebar nav{flex:1;overflow-y:auto;padding:.5rem 0;}
+.admin-sidebar nav a{display:block;padding:.55rem 1rem;color:#c8dfc9;text-decoration:none;font-size:.875rem;cursor:pointer;border-left:3px solid transparent;}
+.admin-sidebar nav a:hover,.admin-sidebar nav a.active{background:rgba(255,255,255,.1);color:#fff;border-left-color:var(--secondary);}
+.admin-sidebar .sidebar-footer{padding:1rem;border-top:1px solid rgba(255,255,255,.12);font-size:.82rem;}
+.admin-sidebar .sidebar-footer a{color:#c8dfc9;text-decoration:none;display:block;margin-bottom:.4rem;}
+.admin-main{flex:1;display:flex;flex-direction:column;min-width:0;}
+.admin-topbar{background:#fff;border-bottom:1px solid var(--gray-light);padding:.7rem 1.5rem;display:flex;align-items:center;justify-content:space-between;font-size:.88rem;}
+.admin-content{flex:1;padding:1.5rem;background:var(--light);overflow-y:auto;}
+.nav-group{padding:.4rem 1rem .1rem;font-size:.72rem;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.06em;margin-top:.6rem;}
+@media(max-width:768px){.admin-sidebar{position:fixed;left:-220px;top:0;bottom:0;z-index:200;transition:.2s;}.admin-sidebar.open{left:0;}.admin-main{margin-left:0;}}
+</style>
 </head>
 <body>
 <div class="admin-shell">
-  <aside class="admin-sidebar">
-    <h2>PEFA Admin</h2>
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="logo">✝ PEFA Admin</div>
     <nav id="adminNav">
-      <a data-view="overview" class="active">Overview</a>
-      <a data-view="members">Members</a>
-      <a data-view="sermons">Sermons</a>
-      <a data-view="events">Events</a>
-      <a data-view="ministries">Ministries</a>
-      <a data-view="announcements">Announcements</a>
-      <a data-view="prayer">Prayer Requests</a>
-      <a data-view="donations">Donations</a>
-      <a data-view="testimonials">Testimonials</a>
-      <a data-view="gallery">Gallery</a>
-      <a data-view="blog">Blog/Devotionals</a>
-      <a data-view="livestreams">Live Streams</a>
-      <a data-view="contact">Contact Messages</a>
-      <a data-view="volunteers">Volunteers</a>
-      <a data-view="newsletter">Newsletter</a>
-      <a data-view="attendance">Attendance</a>
+      <div class="nav-group">Dashboard</div>
+      <a data-view="overview" class="active">📊 Overview</a>
+
+      <div class="nav-group">People</div>
+      <a data-view="members">👥 Members</a>
+      <a data-view="attendance">✅ Attendance</a>
+      <a data-view="cellgroups">🏘 Cell Groups</a>
+      <a data-view="choir">🎵 Choir</a>
+      <a data-view="volunteers">🤝 Volunteers</a>
+      <a data-view="volschedules">📅 Vol. Schedules</a>
+
+      <div class="nav-group">Worship</div>
+      <a data-view="sermons">🎙 Sermons</a>
+      <a data-view="livestreams">🔴 Live Streams</a>
+      <a data-view="ministries">⛪ Ministries</a>
+
+      <div class="nav-group">Events & Care</div>
+      <a data-view="events">📅 Events</a>
+      <a data-view="bookings">📋 Bookings</a>
+      <a data-view="prayer">🙏 Prayer Requests</a>
+
+      <div class="nav-group">Content</div>
+      <a data-view="announcements">📢 Announcements</a>
+      <a data-view="blog">✍ Blog/Devotionals</a>
+      <a data-view="gallery">🖼 Gallery</a>
+      <a data-view="leadership">👤 Leadership</a>
+      <a data-view="bibleverses">📖 Bible Verses</a>
+      <a data-view="library">📚 Library</a>
+
+      <div class="nav-group">Finance</div>
+      <a data-view="donations">💛 Donations</a>
+      <a data-view="inventory">📦 Inventory</a>
+
+      <div class="nav-group">Communications</div>
+      <a data-view="contact">✉ Contact Messages</a>
+      <a data-view="newsletter">📧 Newsletter</a>
+      <a data-view="broadcast">📣 Send Notification</a>
+
+      <div class="nav-group">Tools</div>
+      <a data-view="qrgen">📱 QR Check-In</a>
+      <a data-view="testimonials">💬 Testimonials</a>
     </nav>
-    <a href="#" id="adminLogout" style="display:block;margin-top:2rem;color:#ffb4b4;">Logout</a>
-    <a href="../index.html" style="display:block;margin-top:.5rem;color:#cfe3d6;">← Back to site</a>
+    <div class="sidebar-footer">
+      <a href="../index.html">← Back to Site</a>
+      <a href="#" id="adminLogout" style="color:#ffb4b4;">Logout</a>
+    </div>
   </aside>
+
   <main class="admin-main">
-    <div id="alertBox"></div>
-    <div id="viewContainer"><p>Loading…</p></div>
+    <div class="admin-topbar">
+      <div style="display:flex;align-items:center;gap:.8rem;">
+        <button style="background:none;border:none;font-size:1.3rem;cursor:pointer;" onclick="document.getElementById('adminSidebar').classList.toggle('open')">☰</button>
+        <span id="viewTitle">Overview</span>
+      </div>
+      <div>
+        <span id="adminUserName" style="font-weight:600;"></span>
+        &nbsp;<span id="adminUserRole" style="font-size:.78rem;background:var(--primary);color:#fff;padding:.2rem .6rem;border-radius:999px;"></span>
+      </div>
+    </div>
+    <div class="admin-content">
+      <div id="globalAlert" style="margin-bottom:1rem;"></div>
+      <div id="viewContainer"><p>Loading…</p></div>
+    </div>
   </main>
 </div>
 

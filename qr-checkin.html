@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>QR Check-In — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="auth-shell" style="flex-direction:column;gap:1rem;">
+  <div class="app-form" style="text-align:center;padding:2rem;">
+    <div style="font-size:4rem;">📱</div>
+    <h2 class="section-title">QR Attendance Check-In</h2>
+    <div id="checkinAlert" style="margin-bottom:1rem;"></div>
+    <div id="checkinContent">
+      <p id="checkinMsg">Verifying your QR code…</p>
+    </div>
+    <a href="dashboard.html" class="btn btn-outline" style="margin-top:1.5rem;">Go to My Dashboard</a>
+  </div>
+</section>
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+(async () => {
+  if (!Auth.isLoggedIn()) {
+    const returnUrl = encodeURIComponent(window.location.href);
+    window.location.href = `login.html?returnTo=${returnUrl}`;
+    return;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token');
+  const alertBox = document.getElementById('checkinAlert');
+  const msg = document.getElementById('checkinMsg');
+
+  if (!token) {
+    showAlert(alertBox, 'No QR token found. Please scan a valid QR code from the church entrance.', 'error');
+    msg.textContent = '';
+    return;
+  }
+
+  try {
+    msg.textContent = 'Checking you in…';
+    const res = await Api.qr.checkIn(token);
+    msg.textContent = '';
+    showAlert(alertBox, '✅ ' + res.message, 'success');
+  } catch(e) {
+    msg.textContent = '';
+    showAlert(alertBox, e.message, 'error');
+  }
+})();
+</script>
+</body>
+</html>

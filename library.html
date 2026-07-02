@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Document Library — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Document Library</h1><p>Church documents, study materials, forms, and resources.</p></section>
+
+<section class="section container">
+  <div class="pill-nav" id="catFilter">
+    <button data-cat="" class="active">All</button>
+    <button data-cat="bible_study">Bible Study</button>
+    <button data-cat="sermon_notes">Sermon Notes</button>
+    <button data-cat="constitution">Constitution</button>
+    <button data-cat="minutes">Minutes</button>
+    <button data-cat="policy">Policy</button>
+    <button data-cat="forms">Forms</button>
+  </div>
+  <div id="docGrid" class="grid grid-3"><p>Loading documents…</p></div>
+  <div id="loginNotice" style="display:none;" class="alert alert-info">
+    <a href="login.html">Login</a> to access members-only documents.
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+let allDocs = [];
+
+async function loadDocs() {
+  const wrap = document.getElementById('docGrid');
+  try {
+    const { data } = await Api.library.list();
+    allDocs = data;
+    if (!Auth.isLoggedIn()) document.getElementById('loginNotice').style.display = 'block';
+    renderDocs('');
+  } catch { wrap.innerHTML = '<p>Could not load documents.</p>'; }
+}
+
+function renderDocs(cat) {
+  const wrap = document.getElementById('docGrid');
+  const filtered = cat ? allDocs.filter(d => d.category === cat) : allDocs;
+  wrap.innerHTML = filtered.length ? filtered.map(d => `
+    <div class="card"><div class="card-body">
+      <h3>📄 ${escHtml(d.title)}</h3>
+      <span class="badge badge-new">${d.category.replace('_',' ')}</span>
+      ${!d.isPublic ? '<span class="badge badge-pending" style="margin-left:.3rem;">Members Only</span>' : ''}
+      <p style="margin-top:.5rem;">${escHtml(d.description || '')}</p>
+      <p class="card-meta">Downloads: ${d.downloadCount}</p>
+      <button class="btn btn-outline btn-sm" onclick="downloadDoc('${d.id}','${escHtml(d.title)}')">
+        📥 Download
+      </button>
+    </div></div>`).join('') : '<p>No documents in this category yet.</p>';
+}
+
+document.querySelectorAll('#catFilter button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#catFilter button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderDocs(btn.dataset.cat);
+  });
+});
+
+async function downloadDoc(id, title) {
+  try {
+    const { fileUrl } = await Api.library.download(id);
+    const a = document.createElement('a');
+    a.href = fileUrl.startsWith('http') ? fileUrl : 'http://localhost:5000' + fileUrl;
+    a.download = title; a.target = '_blank';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch(e) { alert(e.message); }
+}
+
+loadDocs();
+</script>
+</body>
+</html>

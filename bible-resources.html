@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Bible Resources — Gwikonge PEFA Church</title>
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="siteHeader"></div>
+<section class="page-header"><h1>Bible Resources</h1><p>Daily verse, Bible study tools, reading plans, and study materials.</p></section>
+
+<!-- Daily Verse -->
+<section class="section" style="background:var(--primary-dark);color:#fff;">
+  <div class="container" style="text-align:center;max-width:700px;">
+    <h2 style="color:var(--secondary);font-family:var(--font-heading);margin-bottom:1rem;">📖 Today's Verse</h2>
+    <div id="todayVerse" style="font-size:1.25rem;line-height:1.8;font-style:italic;">Loading…</div>
+  </div>
+</section>
+
+<!-- Online Bible embed -->
+<section class="section container">
+  <h2 class="section-title">Online Bible</h2>
+  <p>Read the Bible in English (NIV, KJV, ESV) and Swahili (SUV) using the embedded Bible Gateway reader:</p>
+  <div style="margin-top:1rem;border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);">
+    <iframe src="https://www.biblegateway.com/passage/?search=John+3%3A16&version=NIV&interface=print"
+      width="100%" height="500" style="border:0;" loading="lazy" title="Bible Gateway"></iframe>
+  </div>
+  <p style="margin-top:.8rem;font-size:.85rem;color:var(--gray);">
+    Full Bible access: <a href="https://www.biblegateway.com" target="_blank">BibleGateway.com</a> ·
+    <a href="https://www.bible.com" target="_blank">YouVersion Bible App</a> ·
+    <a href="https://www.biblegateway.com/versions/Biblia-Takatifu-SUV-Swahili/" target="_blank">Biblia Takatifu (Swahili)</a>
+  </p>
+</section>
+
+<!-- Reading Plans -->
+<section class="section" style="background:var(--gray-light);">
+  <div class="container">
+    <h2 class="section-title">Bible Reading Plans</h2>
+    <div class="grid grid-3">
+      <div class="card"><div class="card-body">
+        <h3>📅 Read the Bible in 1 Year</h3>
+        <p>A structured plan to read through the entire Bible in 365 days, with both Old and New Testament readings each day.</p>
+        <a href="https://www.biblegateway.com/reading-plans/chronological-365" target="_blank" class="btn btn-primary btn-sm">Start Plan</a>
+      </div></div>
+      <div class="card"><div class="card-body">
+        <h3>📘 New Testament in 90 Days</h3>
+        <p>A focused plan through the New Testament in three months — ideal for new believers or a spiritual refresh.</p>
+        <a href="https://www.biblegateway.com/reading-plans/new-testament-90" target="_blank" class="btn btn-primary btn-sm">Start Plan</a>
+      </div></div>
+      <div class="card"><div class="card-body">
+        <h3>📗 Psalms &amp; Proverbs Monthly</h3>
+        <p>Read through Psalms and Proverbs every month — one Psalm and one Proverbs chapter per day.</p>
+        <a href="https://www.biblegateway.com/reading-plans/psalms-and-proverbs" target="_blank" class="btn btn-primary btn-sm">Start Plan</a>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<!-- Daily Verse Pool -->
+<section class="section container">
+  <h2 class="section-title">Verse of the Day Archive</h2>
+  <div id="verseList" class="grid grid-2"><p>Loading verses…</p></div>
+</section>
+
+<!-- Bible Study Materials -->
+<section class="section" style="background:var(--gray-light);">
+  <div class="container">
+    <h2 class="section-title">Bible Study Materials</h2>
+    <p style="margin-bottom:1rem;">Download study notes and materials from our library.</p>
+    <div id="studyDocs" class="grid grid-3"><p>Loading documents…</p></div>
+    <p style="margin-top:1rem;"><a href="library.html" class="btn btn-outline">Browse Full Library →</a></p>
+  </div>
+</section>
+
+<div id="siteFooter"></div>
+<script src="js/api.js"></script>
+<script src="js/partials.js"></script>
+<script>
+(async () => {
+  // Today's verse
+  try {
+    const { data } = await Api.bible.today();
+    document.getElementById('todayVerse').innerHTML =
+      `"${escHtml(data.text)}"<br><strong style="color:var(--secondary);font-style:normal;">— ${escHtml(data.reference)} (${escHtml(data.translation)})</strong>`;
+  } catch { document.getElementById('todayVerse').textContent = 'Could not load verse.'; }
+
+  // Verse archive
+  try {
+    const { data } = await Api.bible.list();
+    const wrap = document.getElementById('verseList');
+    wrap.innerHTML = data.length ? data.map(v => `
+      <div class="card"><div class="card-body">
+        <h3 style="color:var(--primary);">${escHtml(v.reference)}</h3>
+        <p style="font-style:italic;">"${escHtml(v.text)}"</p>
+        <p class="card-meta">${escHtml(v.translation)}</p>
+      </div></div>`).join('') : '<p>No verses added yet.</p>';
+  } catch {}
+
+  // Study docs from library
+  try {
+    const { data } = await Api.library.list();
+    const docs = data.filter(d => ['bible_study','sermon_notes'].includes(d.category)).slice(0,6);
+    const wrap = document.getElementById('studyDocs');
+    wrap.innerHTML = docs.length ? docs.map(d => `
+      <div class="card"><div class="card-body">
+        <h3>${escHtml(d.title)}</h3>
+        <p class="card-meta">${d.category.replace('_',' ')}</p>
+        <p>${escHtml(d.description||'')}</p>
+        <button class="btn btn-outline btn-sm" onclick="downloadDoc('${d.id}','${escHtml(d.title)}')">
+          📥 Download
+        </button>
+      </div></div>`).join('') : '<p>No study materials uploaded yet. Check back soon!</p>';
+  } catch {}
+})();
+
+async function downloadDoc(id, title) {
+  try {
+    const { fileUrl } = await Api.library.download(id);
+    const a = document.createElement('a');
+    a.href = fileUrl; a.download = title; a.target = '_blank';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  } catch(e) { alert(e.message); }
+}
+</script>
+</body>
+</html>

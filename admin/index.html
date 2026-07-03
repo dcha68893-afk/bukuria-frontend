@@ -38,8 +38,8 @@
       <a data-view="volschedules">📅 Vol. Schedules</a>
 
       <div class="nav-group">Worship</div>
-      <a data-view="sermons" data-minrole="pastor">🎙 Sermons</a>
-      <a data-view="livestreams" data-minrole="pastor">🔴 Live Streams</a>
+      <a data-view="sermons" data-minrole="pastor" data-permission="upload_sermons">🎙 Sermons</a>
+      <a data-view="livestreams" data-minrole="pastor" data-permission="start_livestream,manage_livestream">🔴 Live Streams</a>
       <a data-view="ministries">⛪ Ministries</a>
 
       <div class="nav-group">Events & Care</div>
@@ -49,23 +49,28 @@
 
       <div class="nav-group">Content</div>
       <a data-view="announcements" data-minrole="pastor">📢 Announcements</a>
-      <a data-view="blog" data-minrole="pastor">✍ Blog/Devotionals</a>
+      <a data-view="blog" data-minrole="pastor" data-permission="manage_blog">✍ Blog/Devotionals</a>
       <a data-view="gallery">🖼 Gallery</a>
       <a data-view="leadership" data-minrole="pastor">👤 Leadership</a>
       <a data-view="bibleverses" data-minrole="pastor">📖 Bible Verses</a>
       <a data-view="library" data-minrole="pastor">📚 Library</a>
 
       <div class="nav-group">Finance</div>
-      <a data-view="donations" data-minrole="pastor">💛 Donations</a>
+      <a data-view="donations" data-minrole="pastor" data-permission="view_donations">💛 Donations</a>
       <a data-view="inventory" data-minrole="pastor">📦 Inventory</a>
 
+      <div class="nav-group">Projects & Roles</div>
+      <a data-view="projects" data-minrole="pastor" data-permission="view_projects,manage_projects">🏗 Projects</a>
+      <a data-view="ministrytasks">✅ Ministry Tasks</a>
+      <a data-view="roles" data-minrole="pastor">🔐 Roles & Permissions</a>
+
       <div class="nav-group">Communications</div>
-      <a data-view="contact" data-minrole="pastor">✉ Contact Messages</a>
-      <a data-view="newsletter" data-minrole="pastor">📧 Newsletter</a>
-      <a data-view="broadcast" data-minrole="pastor">📣 Send Notification</a>
+      <a data-view="contact" data-minrole="pastor" data-permission="manage_contact_messages">✉ Contact Messages</a>
+      <a data-view="newsletter" data-minrole="pastor" data-permission="manage_newsletter">📧 Newsletter</a>
+      <a data-view="broadcast" data-minrole="pastor" data-permission="send_broadcast">📣 Send Notification</a>
 
       <div class="nav-group">Tools</div>
-      <a data-view="qrgen" data-minrole="pastor">📱 QR Check-In</a>
+      <a data-view="qrgen" data-minrole="pastor" data-permission="manage_qr_checkin">📱 QR Check-In</a>
       <a data-view="testimonials">💬 Testimonials</a>
     </nav>
     <div class="sidebar-footer">

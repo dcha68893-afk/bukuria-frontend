@@ -31,6 +31,36 @@ document.querySelectorAll('#adminNav .nav-group').forEach(heading => {
   if (!hasLinks) heading.style.display = 'none';
 });
 
+// ---- Finer-grained hiding for granular job titles ----
+// The data-minrole filtering above only knows the coarse tier (leader/pastor/
+// admin/super_admin), so e.g. a Finance Manager and a Media Director — both
+// tier 'admin' — currently see the exact same nav. This pass additionally
+// hides items tagged data-permission="..." (comma-separated; any-of) that
+// the signed-in user's specific job title doesn't actually have, so a
+// Finance Manager stops seeing "Live Streams" and a Media Director stops
+// seeing "Donations". Runs only for accounts with a roleTitle assigned —
+// a plain admin/pastor/etc keeps seeing everything, same as before.
+// (Non-blocking: if it fails, the wider tier-based nav from above still
+// stands, and the backend still enforces the real permission either way.)
+if (user.roleTitle && user.role !== 'super_admin') {
+  Api.roles.list().then(({ data }) => {
+    const roleInfo = data.roles.find(r => r.title === user.roleTitle);
+    const perms = roleInfo ? roleInfo.permissions : [];
+    document.querySelectorAll('#adminNav a[data-permission]').forEach(a => {
+      const needed = a.dataset.permission.split(',');
+      if (!needed.some(p => perms.includes(p))) a.remove();
+    });
+    document.querySelectorAll('#adminNav .nav-group').forEach(heading => {
+      let el = heading.nextElementSibling, hasLinks = false;
+      while (el && !el.classList.contains('nav-group')) {
+        if (el.matches('a[data-view]')) hasLinks = true;
+        el = el.nextElementSibling;
+      }
+      heading.style.display = hasLinks ? '' : 'none';
+    });
+  }).catch(() => {}); // fail-open to the tier-based nav; backend still enforces permissions
+}
+
 document.querySelectorAll('#adminNav a[data-view]').forEach(a => {
   a.addEventListener('click', () => {
     document.querySelectorAll('#adminNav a').forEach(x => x.classList.remove('active'));
@@ -76,6 +106,9 @@ async function renderView(view) {
       broadcast:    renderBroadcast,
       qrgen:        renderQRGen,
       testimonials: renderTestimonials,
+      projects:     () => renderCrud(projectCfg),
+      ministrytasks:renderMinistryTasks,
+      roles:        renderRoles,
     };
     if (map[view]) await map[view]();
     else viewContainer.innerHTML = '<p>View not found.</p>';
@@ -153,6 +186,13 @@ async function renderMembers() {
   if (canAssignMinistry) {
     try { ministries = (await Api.ministries.list('?limit=100')).data; } catch {}
   }
+  // Granular job titles (Finance Manager, Camera Operator, etc) — see
+  // config/permissions.js on the backend. Only fetched for admins, since
+  // assigning one is an admin-only action; a pastor still just sees the tier.
+  let roleTitles = [];
+  if (canEdit) {
+    try { roleTitles = (await Api.roles.list()).data.roles; } catch {}
+  }
 
   viewContainer.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem;">
@@ -164,7 +204,7 @@ async function renderMembers() {
     <table class="data-table" id="memberTable">
       <thead><tr>
         <th>Name</th><th>Email</th><th>Phone</th>
-        <th>Role</th>${canAssignMinistry ? '<th>Ministry (if leader)</th>' : ''}<th>Membership</th><th>Joined</th>
+        <th>Role</th>${canEdit ? '<th>Job Title</th>' : ''}${canAssignMinistry ? '<th>Ministry (if leader)</th>' : ''}<th>Membership</th><th>Joined</th>
         ${canEdit ? '<th>Actions</th>' : ''}
       </tr></thead>
       <tbody>
@@ -186,8 +226,20 @@ async function renderMembers() {
                 </select>`
               : `<span class="badge badge-new">${m.role}</span>`}
           </td>
+          ${canEdit ? `<td>
+              <select class="roleTitleSelect" data-id="${m.id}"
+                ${m.id === user.id ? 'disabled title="Cannot change your own job title"' : ''}>
+                <option value="">— no specific title —</option>
+                ${roleTitles.map(rt =>
+                  `<option value="${rt.title}"
+                    ${m.roleTitle === rt.title ? 'selected' : ''}
+                    ${!isSuperAdmin && ['admin','super_admin'].includes(rt.tier) ? 'disabled' : ''}>
+                    ${rt.label} (${rt.tier})
+                  </option>`).join('')}
+              </select>
+            </td>` : ''}
           ${canAssignMinistry ? `<td>
-              ${m.role === 'leader'
+              ${(m.role === 'leader' || m.roleTitle)
                 ? `<select class="ministrySelect" data-id="${m.id}">
                     <option value="">— none —</option>
                     ${ministries.map(mn => `<option value="${mn.id}" ${m.ministryId===mn.id?'selected':''}>${escHtml(mn.name)}</option>`).join('')}
@@ -230,6 +282,19 @@ async function renderMembers() {
           await Api.members.update(sel.dataset.id, { role: sel.value });
           flash('Role updated.');
           renderMembers(); // ministry dropdown only shows for role === 'leader', so refresh
+        } catch (e) { flash(e.message, 'error'); }
+      });
+    });
+    document.querySelectorAll('.roleTitleSelect').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        try {
+          // Sending '' clears the title server-side (roleTitle: null); the
+          // tier (role) stays whatever it currently is in that case, since
+          // clearing a title doesn't imply demoting someone — set role
+          // separately if that's also intended.
+          await Api.members.update(sel.dataset.id, { roleTitle: sel.value || null });
+          flash('Job title updated. Their access now follows that title\'s permission set.');
+          renderMembers();
         } catch (e) { flash(e.message, 'error'); }
       });
     });
@@ -1043,6 +1108,163 @@ async function deleteTestimonial(id) {
   catch (e) { flash(e.message, 'error'); }
 }
 
+// ========================== ROLES & PERMISSIONS ==========================
+async function renderRoles() {
+  const { data } = await Api.roles.list();
+  const { roles, permissions } = data;
+  const permKeys = Object.values(permissions);
+  const permLabel = (p) => p.replace(/_/g, ' ');
+
+  viewContainer.innerHTML = `
+    <h2 class="section-title">Roles & Permissions (${roles.length} job titles)</h2>
+    <p style="color:var(--gray);font-size:.88rem;margin-bottom:1rem;">
+      This is the live permission matrix from the backend (config/permissions.js) — not editable here.
+      To assign someone a job title, go to <a href="#" onclick="document.querySelector('[data-view=members]').click();return false;">Members</a>
+      and set their "Job Title" column. Each title also carries a base access tier
+      (member/leader/pastor/admin/super_admin) shown in parentheses.
+    </p>
+    <div style="overflow-x:auto;max-height:70vh;">
+    <table class="data-table" style="font-size:.78rem;">
+      <thead><tr style="position:sticky;top:0;background:#fff;">
+        <th style="text-align:left;min-width:160px;">Role</th>
+        ${permKeys.map(p => `<th style="writing-mode:vertical-rl;text-orientation:mixed;padding:.4rem .3rem;font-weight:500;">${permLabel(p)}</th>`).join('')}
+      </tr></thead>
+      <tbody>
+      ${roles.map(r => `
+        <tr>
+          <td style="white-space:nowrap;font-weight:600;">${escHtml(r.label)}<br><span style="font-weight:400;color:var(--gray);font-size:.75rem;">${r.tier}</span></td>
+          ${permKeys.map(p => `<td style="text-align:center;">${r.permissions.includes(p) ? '✅' : ''}</td>`).join('')}
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+}
+
+// ========================== MINISTRY TASKS ==========================
+async function renderMinistryTasks() {
+  const [ministriesRes, membersRes] = await Promise.all([
+    Api.ministries.list('?limit=100'),
+    Api.members.list('?limit=200').catch(() => ({ data: [] })), // leader-tier can read, but fail soft either way
+  ]);
+  const ministries = ministriesRes.data;
+  const members = membersRes.data;
+  // A plain leader-tier user is scoped server-side to their own ministry;
+  // default the filter to that ministry so they're not staring at a 403 by
+  // picking the wrong one. Pastor+ defaults to "all".
+  const defaultMinistryId = !Auth.isAtLeast('pastor') && user.ministryId ? user.ministryId : '';
+
+  async function loadTasks(ministryId) {
+    const qs = ministryId ? `?ministryId=${ministryId}` : '';
+    const { data } = await Api.ministryTasks.list(qs);
+    const tbody = document.getElementById('taskTableBody');
+    tbody.innerHTML = data.length ? data.map(t => `
+      <tr>
+        <td>${escHtml(t.title)}</td>
+        <td style="font-size:.85rem;">${escHtml(ministries.find(m => m.id === t.ministryId)?.name || '')}</td>
+        <td style="font-size:.85rem;">${t.assignedTo ? escHtml(t.assignedTo.firstName + ' ' + t.assignedTo.lastName) : '—'}</td>
+        <td style="font-size:.85rem;">${fmtDate(t.serviceDate)}</td>
+        <td>
+          <select class="taskStatusSelect" data-id="${t.id}">
+            ${['pending','in_progress','completed'].map(s => `<option value="${s}" ${t.status===s?'selected':''}>${s.replace('_',' ')}</option>`).join('')}
+          </select>
+        </td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteMinistryTask('${t.id}','${ministryId||''}')">Delete</button></td>
+      </tr>`).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--gray);padding:1rem;">No tasks yet.</td></tr>`;
+
+    tbody.querySelectorAll('.taskStatusSelect').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        try {
+          // Backend allows a task's assignee to update just `status` even
+          // without full manage permission — so this same control works for
+          // both a ministry leader and the volunteer a task is assigned to.
+          await Api.ministryTasks.update(sel.dataset.id, { status: sel.value });
+          flash('Task status updated.');
+        } catch (e) { flash(e.message, 'error'); sel.value = sel.dataset.prev || sel.value; }
+      });
+    });
+  }
+
+  viewContainer.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem;">
+      <h2 class="section-title">Ministry Tasks</h2>
+      <div style="display:flex;gap:.6rem;align-items:center;">
+        <select id="taskMinistryFilter" style="padding:.4rem .6rem;border:1px solid var(--gray-light);border-radius:var(--radius);">
+          <option value="">All ministries</option>
+          ${ministries.map(m => `<option value="${m.id}" ${defaultMinistryId===m.id?'selected':''}>${escHtml(m.name)}</option>`).join('')}
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openTaskForm()">+ Add Task</button>
+      </div>
+    </div>
+    <p style="color:var(--gray);font-size:.82rem;margin-bottom:.8rem;">
+      Only ministry leads (and up) can create or reassign tasks. A task's assignee can always mark their own task's status,
+      even without that permission — e.g. a camera operator can tick "Camera Setup" done without being able to create new tasks.
+    </p>
+    <div id="taskFormWrap"></div>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead><tr><th>Title</th><th>Ministry</th><th>Assigned To</th><th>Service Date</th><th>Status</th><th></th></tr></thead>
+      <tbody id="taskTableBody"><tr><td colspan="6">Loading…</td></tr></tbody>
+    </table></div>`;
+
+  document.getElementById('taskMinistryFilter').addEventListener('change', (e) => loadTasks(e.target.value));
+
+  window.openTaskForm = function openTaskForm() {
+    document.getElementById('taskFormWrap').innerHTML = `
+      <form id="taskForm" class="app-form wide" style="margin-bottom:1.5rem;">
+        <h3>Add Ministry Task</h3>
+        <div id="taskAlert"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div class="form-group"><label>Title</label><input type="text" name="title" required></div>
+          <div class="form-group"><label>Ministry</label>
+            <select name="ministryId" required>
+              <option value="">— select —</option>
+              ${ministries.map(m => `<option value="${m.id}" ${defaultMinistryId===m.id?'selected':''}>${escHtml(m.name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>Assign To</label>
+            <select name="assignedToUserId">
+              <option value="">— unassigned —</option>
+              ${members.map(m => `<option value="${m.id}">${escHtml(m.firstName)} ${escHtml(m.lastName)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>Service Date</label><input type="date" name="serviceDate"></div>
+          <div class="form-group" style="grid-column:1/-1;"><label>Notes</label><textarea name="notes"></textarea></div>
+        </div>
+        <div style="display:flex;gap:.6rem;margin-top:.8rem;">
+          <button class="btn btn-primary" type="submit">Create Task</button>
+          <button class="btn btn-outline" type="button" onclick="document.getElementById('taskFormWrap').innerHTML=''">Cancel</button>
+        </div>
+      </form>`;
+    document.getElementById('taskForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.target;
+      const payload = {
+        title: f.elements.title.value,
+        ministryId: f.elements.ministryId.value,
+        assignedToUserId: f.elements.assignedToUserId.value || null,
+        serviceDate: f.elements.serviceDate.value || null,
+        notes: f.elements.notes.value || null,
+      };
+      try {
+        await Api.ministryTasks.create(payload);
+        flash('Task created.');
+        document.getElementById('taskFormWrap').innerHTML = '';
+        loadTasks(document.getElementById('taskMinistryFilter').value);
+      } catch (err) { showAlert(document.getElementById('taskAlert'), err.message); }
+    });
+  };
+
+  loadTasks(defaultMinistryId);
+}
+
+async function deleteMinistryTask(id, ministryId) {
+  if (!confirm('Delete this task?')) return;
+  try {
+    await Api.ministryTasks.remove(id);
+    flash('Task deleted.');
+    renderMinistryTasks();
+  } catch (e) { flash(e.message, 'error'); }
+}
+
 // ========================== GENERIC CRUD FACTORY ==========================
 // Each config: { title, api, columns: [[key,label,fmtFn?]], fields: [{k,type,label,req?,options?}] }
 const sermonCfg = {
@@ -1179,6 +1401,31 @@ const inventoryCfg = {
     {k:'purchaseValue',type:'number',label:'Purchase Value (KES)'},
     {k:'notes',type:'textarea',label:'Notes / Maintenance Log'},
   ],
+};
+const projectCfg = {
+  title: 'Projects', api: Api.projects,
+  columns: [
+    ['title','Title'],
+    ['status','Status'],
+    ['budget','Budget', v => fmtMoney(v)],
+    ['completedPercent','Complete', v => `${v || 0}%`],
+    ['responsibleParty','Responsible'],
+  ],
+  fields: [
+    {k:'title',type:'text',label:'Title',req:true},
+    {k:'description',type:'textarea',label:'Description'},
+    {k:'responsibleParty',type:'text',label:'Responsible Party (e.g. Building Committee)'},
+    {k:'budget',type:'number',label:'Budget (KES)'},
+    {k:'amountSpent',type:'number',label:'Amount Spent So Far (KES)'},
+    {k:'completedPercent',type:'number',label:'Percent Complete (0–100)'},
+    {k:'status',type:'select',label:'Status',options:['planning','in_progress','on_hold','completed','cancelled']},
+    {k:'startDate',type:'date',label:'Start Date'},
+    {k:'targetEndDate',type:'date',label:'Target End Date'},
+  ],
+  // Everyone with access to the Projects nav item is pastor-tier+ already
+  // (see data-minrole="pastor" in index.html); MANAGE_PROJECTS is enforced
+  // server-side on top of that for granular roles like church_secretary.
+  canCreate: () => Auth.isAtLeast('pastor'),
 };
 
 // Shared current config state

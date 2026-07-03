@@ -229,6 +229,25 @@ const Api = {
     update: (id,p) => apiRequest(`/inventory/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/inventory/${id}`, { method: 'DELETE', auth: true }),
   },
+  roles: {
+    list: () => apiRequest('/roles', { auth: true }),
+  },
+  projects: {
+    list: (qs='') => apiRequest(`/projects${qs}`, { auth: true }),
+    get: (id) => apiRequest(`/projects/${id}`, { auth: true }),
+    create: (p) => apiRequest('/projects', { method: 'POST', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/projects/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/projects/${id}`, { method: 'DELETE', auth: true }),
+    addMilestone: (id,p) => apiRequest(`/projects/${id}/milestones`, { method: 'POST', body: p, auth: true }),
+    updateMilestone: (id,mid,p) => apiRequest(`/projects/${id}/milestones/${mid}`, { method: 'PUT', body: p, auth: true }),
+    removeMilestone: (id,mid) => apiRequest(`/projects/${id}/milestones/${mid}`, { method: 'DELETE', auth: true }),
+  },
+  ministryTasks: {
+    list: (qs='') => apiRequest(`/ministry-tasks${qs}`, { auth: true }),
+    create: (p) => apiRequest('/ministry-tasks', { method: 'POST', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/ministry-tasks/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/ministry-tasks/${id}`, { method: 'DELETE', auth: true }),
+  },
   search: (q, limit=5) => apiRequest(`/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   dashboard: { stats: () => apiRequest('/dashboard/stats', { auth: true }) },
   upload: {

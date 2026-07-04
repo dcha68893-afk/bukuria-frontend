@@ -248,6 +248,36 @@ const Api = {
     update: (id,p) => apiRequest(`/ministry-tasks/${id}`, { method: 'PUT', body: p, auth: true }),
     remove: (id) => apiRequest(`/ministry-tasks/${id}`, { method: 'DELETE', auth: true }),
   },
+  workflowTemplates: {
+    list: () => apiRequest('/workflow-templates', { auth: true }),
+    create: (p) => apiRequest('/workflow-templates', { method: 'POST', body: p, auth: true }),
+    update: (id,p) => apiRequest(`/workflow-templates/${id}`, { method: 'PUT', body: p, auth: true }),
+    remove: (id) => apiRequest(`/workflow-templates/${id}`, { method: 'DELETE', auth: true }),
+  },
+  workflowRequests: {
+    list: (qs='') => apiRequest(`/workflow-requests${qs}`, { auth: true }),
+    get: (id) => apiRequest(`/workflow-requests/${id}`, { auth: true }),
+    create: (p) => apiRequest('/workflow-requests', { method: 'POST', body: p, auth: true }),
+    advance: (id,p) => apiRequest(`/workflow-requests/${id}/advance`, { method: 'POST', body: p, auth: true }),
+  },
+  auditLogs: {
+    list: (qs='') => apiRequest(`/audit-logs${qs}`, { auth: true }),
+    forEntity: (type,id) => apiRequest(`/audit-logs/entity/${type}/${id}`, { auth: true }),
+  },
+  cellGroupExtras: {
+    reports: (id) => apiRequest(`/cell-groups/${id}/reports`, { auth: true }),
+    submitReport: (id,p) => apiRequest(`/cell-groups/${id}/reports`, { method: 'POST', body: p, auth: true }),
+    growth: (id) => apiRequest(`/cell-groups/${id}/growth`, { auth: true }),
+  },
+  leadershipExtras: {
+    profile: (id) => apiRequest(`/leadership/${id}/profile`),
+    appointments: (id) => apiRequest(`/leadership/${id}/appointments`, { auth: true }),
+  },
+  membersExtras: {
+    profile: (id) => apiRequest(`/members/${id}/profile`, { auth: true }),
+    deleted: () => apiRequest('/members/deleted', { auth: true }),
+    restore: (id) => apiRequest(`/members/${id}/restore`, { method: 'POST', auth: true }),
+  },
   search: (q, limit=5) => apiRequest(`/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   dashboard: { stats: () => apiRequest('/dashboard/stats', { auth: true }) },
   upload: {

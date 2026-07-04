@@ -108,7 +108,10 @@ async function renderView(view) {
       testimonials: renderTestimonials,
       projects:     () => renderCrud(projectCfg),
       ministrytasks:renderMinistryTasks,
+      workflows:    renderWorkflows,
       roles:        renderRoles,
+      auditlog:     renderAuditLog,
+      deletedmembers: renderDeletedMembers,
     };
     if (map[view]) await map[view]();
     else viewContainer.innerHTML = '<p>View not found.</p>';
@@ -205,7 +208,7 @@ async function renderMembers() {
       <thead><tr>
         <th>Name</th><th>Email</th><th>Phone</th>
         <th>Role</th>${canEdit ? '<th>Job Title</th>' : ''}${canAssignMinistry ? '<th>Ministry (if leader)</th>' : ''}<th>Membership</th><th>Joined</th>
-        ${canEdit ? '<th>Actions</th>' : ''}
+        <th>Actions</th>
       </tr></thead>
       <tbody>
       ${data.map(m => `
@@ -255,14 +258,15 @@ async function renderMembers() {
               : escHtml(m.membershipStatus || '')}
           </td>
           <td style="font-size:.85rem;">${fmtDate(m.membershipDate || m.createdAt)}</td>
-          ${canEdit
-            ? `<td>
-                <button class="btn btn-sm btn-danger"
+          <td style="white-space:nowrap;">
+            <button class="btn btn-sm btn-outline" onclick="viewMemberProfile('${m.id}')">Profile</button>
+            ${canEdit
+              ? `<button class="btn btn-sm btn-danger"
                   onclick="deleteMember('${m.id}','${escHtml(m.firstName)} ${escHtml(m.lastName)}')">
                   Remove
-                </button>
-              </td>`
-            : ''}
+                </button>`
+              : ''}
+          </td>
         </tr>`).join('')}
       </tbody>
     </table></div>`;
@@ -320,10 +324,78 @@ async function renderMembers() {
 }
 
 async function deleteMember(id, name) {
-  if (!Auth.hasRole('super_admin')) { flash('Only super_admin can remove members.', 'error'); return; }
-  if (!confirm(`Permanently remove "${name}"? This cannot be undone.`)) return;
+  // Backend enforces the real rule (super_admin + senior_pastor specifically,
+  // via DELETE_MEMBERS — see config/permissions.js); this is just a rough
+  // client-side approximation so obviously-ineligible roles don't even see
+  // the option attempt something the server will reject anyway.
+  if (!Auth.isAtLeast('pastor')) { flash('You do not have permission to remove members.', 'error'); return; }
+  if (!confirm(`Remove "${name}"? This is recoverable by a super admin afterward, but treat it as serious.`)) return;
   try { await Api.members.remove(id); flash('Member removed.'); renderMembers(); }
   catch (e) { flash(e.message, 'error'); }
+}
+
+// Lightweight self-contained modal — no dependency on any specific view's
+// DOM structure, so it can be triggered from anywhere (e.g. the Members
+// table's "Profile" button).
+function showModal(title, bodyHtml) {
+  const existing = document.getElementById('appModalOverlay');
+  if (existing) existing.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'appModalOverlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:var(--radius,8px);max-width:700px;width:100%;max-height:85vh;overflow-y:auto;padding:1.5rem;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2 class="section-title" style="margin:0;">${title}</h2>
+        <button class="btn btn-sm btn-outline" onclick="document.getElementById('appModalOverlay').remove()">Close</button>
+      </div>
+      ${bodyHtml}
+    </div>`;
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+async function viewMemberProfile(id) {
+  showModal('Member Profile', '<p>Loading…</p>');
+  try {
+    const { data: p } = await Api.membersExtras.profile(id);
+    const body = document.querySelector('#appModalOverlay > div');
+    body.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2 class="section-title" style="margin:0;">${escHtml(p.firstName)} ${escHtml(p.lastName)}</h2>
+        <button class="btn btn-sm btn-outline" onclick="document.getElementById('appModalOverlay').remove()">Close</button>
+      </div>
+      <p class="card-meta">${escHtml(p.email)} ${p.phone ? '· ' + escHtml(p.phone) : ''}</p>
+      <p class="card-meta">Status: ${escHtml(p.membershipStatus || '—')} &nbsp;|&nbsp; Ministry: ${p.ministry ? escHtml(p.ministry.name) : '—'} &nbsp;|&nbsp; Cell Group: ${p.cellGroup ? escHtml(p.cellGroup.name) : '—'}</p>
+      <div class="grid grid-2" style="margin-top:1rem;gap:1rem;">
+        <div class="card"><div class="card-body">
+          <h3>Attendance</h3>
+          <p class="card-meta">${p.attendance.total} record(s) on file</p>
+          <ul style="font-size:.85rem;max-height:120px;overflow-y:auto;">
+            ${p.attendance.recent.slice(0,10).map(a => `<li>${fmtDate(a.serviceDate)}</li>`).join('') || '<li style="color:var(--gray);">None yet</li>'}
+          </ul>
+        </div></div>
+        <div class="card"><div class="card-body">
+          <h3>Giving</h3>
+          <p class="card-meta">${fmtMoney(p.giving.totalAllTime)} all-time across ${p.giving.count} gift(s)</p>
+          <ul style="font-size:.85rem;max-height:120px;overflow-y:auto;">
+            ${p.giving.recent.slice(0,10).map(d => `<li>${fmtDate(d.createdAt)} — ${fmtMoney(d.amount)} (${escHtml(d.type)})</li>`).join('') || '<li style="color:var(--gray);">None yet</li>'}
+          </ul>
+        </div></div>
+        <div class="card"><div class="card-body">
+          <h3>Volunteering</h3>
+          <p class="card-meta">${p.volunteering.shiftsCompleted} shift(s) completed</p>
+        </div></div>
+        <div class="card"><div class="card-body">
+          <h3>Discipleship</h3>
+          <p class="card-meta">Stage: ${escHtml(p.discipleshipStage || '—')}</p>
+          <p class="card-meta">Courses: ${(p.coursesCompleted || []).join(', ') || '—'}</p>
+        </div></div>
+      </div>`;
+  } catch (e) {
+    const body = document.querySelector('#appModalOverlay > div');
+    if (body) body.innerHTML = `<p>Could not load profile: ${escHtml(e.message)}</p>`;
+  }
 }
 
 // ========================== ATTENDANCE ==========================
@@ -400,6 +472,9 @@ async function renderCellGroups() {
             ? `<button class="btn btn-sm btn-danger" onclick="deleteCG('${g.id}')">Delete</button>`
             : ''}
           <button class="btn btn-sm btn-outline" onclick="viewCGMembers('${g.id}','${escHtml(g.name)}')">View Members</button>
+          ${Auth.isAtLeast('leader')
+            ? `<button class="btn btn-sm btn-outline" onclick="viewCGReports('${g.id}','${escHtml(g.name)}')">Reports & Growth</button>`
+            : ''}
         </div>
       </div></div>`).join('')}
     </div>
@@ -464,6 +539,105 @@ async function viewCGMembers(id, name) {
         <td>${fmtDate(m.joinedAt)}</td>
       </tr>`).join('')}</tbody></table>`;
   } catch (e) { wrap.innerHTML = `<p>Could not load members: ${e.message}</p>`; }
+}
+
+// Weekly reports (attendance + Bible study notes) and growth chart for one
+// cell group — server enforces that a plain leader can only ever load/submit
+// against their OWN group (see routes/cellgroups.routes.js); this UI doesn't
+// duplicate that check, it just surfaces whatever the API allows.
+async function viewCGReports(id, name) {
+  const wrap = document.getElementById('cgMembersWrap');
+  wrap.innerHTML = '<p>Loading…</p>';
+  try {
+    const [reportsRes, growthRes] = await Promise.all([Api.cellGroupExtras.reports(id), Api.cellGroupExtras.growth(id)]);
+    const reports = reportsRes.data;
+    const growth = growthRes.data;
+
+    wrap.innerHTML = `
+      <h3>${escHtml(name)} — Weekly Reports & Growth</h3>
+      <div class="grid grid-2" style="align-items:start;">
+        <div>
+          <button class="btn btn-primary btn-sm" onclick="openCGReportForm('${id}','${escHtml(name)}')">+ Submit This Week's Report</button>
+          <div id="cgReportFormWrap"></div>
+          <table class="data-table" style="margin-top:.8rem;">
+            <thead><tr><th>Date</th><th>Attend.</th><th>Visitors</th><th>Bible Study Topic</th></tr></thead>
+            <tbody>${reports.length ? reports.map(r => `
+              <tr>
+                <td>${fmtDate(r.meetingDate)}</td>
+                <td>${r.attendanceCount}</td>
+                <td>${r.visitorsCount || 0}</td>
+                <td>${escHtml(r.bibleStudyTopic || '—')}</td>
+              </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gray);">No reports submitted yet.</td></tr>'}</tbody>
+          </table>
+        </div>
+        <div>
+          <p class="card-meta">Current members: <strong>${growth.currentMemberCount}</strong></p>
+          <p class="card-meta" style="margin-top:.5rem;">Attendance trend (last 12 months)</p>
+          <div id="cgGrowthChart"></div>
+        </div>
+      </div>`;
+
+    if (growth.attendanceTrend.length) {
+      renderMiniBarChart(
+        document.getElementById('cgGrowthChart'),
+        growth.attendanceTrend.map(r => fmtDate(r.meetingDate)),
+        growth.attendanceTrend.map(r => r.attendance)
+      );
+    } else {
+      document.getElementById('cgGrowthChart').innerHTML = '<p style="color:var(--gray);font-size:.85rem;">No reports yet to chart.</p>';
+    }
+  } catch (e) { wrap.innerHTML = `<p>Could not load reports: ${e.message}</p>`; }
+}
+
+// Small dependency-free bar chart (no charting library is loaded in this
+// admin panel) — plain divs with heights proportional to the max value.
+// Good enough for a quick trend glance; not a replacement for a real
+// charting library if richer visuals are wanted later.
+function renderMiniBarChart(container, labels, values) {
+  const max = Math.max(...values, 1);
+  container.innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:4px;height:120px;border-bottom:1px solid var(--gray-light);padding-bottom:2px;">
+      ${values.map((v, i) => `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;" title="${escHtml(labels[i])}: ${v}">
+          <div style="width:100%;background:var(--primary,#4f46e5);border-radius:2px 2px 0 0;height:${Math.max((v / max) * 100, 3)}%;"></div>
+        </div>`).join('')}
+    </div>
+    <div style="display:flex;gap:4px;margin-top:4px;">
+      ${labels.map(l => `<div style="flex:1;font-size:.65rem;color:var(--gray);text-align:center;overflow:hidden;white-space:nowrap;">${escHtml(l)}</div>`).join('')}
+    </div>`;
+}
+
+function openCGReportForm(cellGroupId, name) {
+  document.getElementById('cgReportFormWrap').innerHTML = `
+    <form id="cgReportForm" class="app-form" style="margin-top:.8rem;">
+      <div id="cgReportAlert"></div>
+      <div class="form-group"><label>Meeting Date</label><input type="date" name="meetingDate" required></div>
+      <div class="form-row">
+        <div class="form-group"><label>Attendance</label><input type="number" name="attendanceCount" min="0" required></div>
+        <div class="form-group"><label>Visitors</label><input type="number" name="visitorsCount" min="0" value="0"></div>
+      </div>
+      <div class="form-group"><label>Bible Study Topic</label><input name="bibleStudyTopic"></div>
+      <div class="form-group"><label>Bible Study Notes</label><textarea name="bibleStudyNotes"></textarea></div>
+      <div class="form-group"><label>Prayer Requests Summary</label><textarea name="prayerRequestsSummary" placeholder="Themes discussed, not individual private requests"></textarea></div>
+      <button class="btn btn-primary btn-sm" type="submit">Save Report</button>
+    </form>`;
+  document.getElementById('cgReportForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const f = e.target;
+    const payload = {
+      meetingDate: f.meetingDate.value,
+      attendanceCount: Number(f.attendanceCount.value),
+      visitorsCount: Number(f.visitorsCount.value || 0),
+      bibleStudyTopic: f.bibleStudyTopic.value,
+      bibleStudyNotes: f.bibleStudyNotes.value,
+      prayerRequestsSummary: f.prayerRequestsSummary.value,
+    };
+    try {
+      await Api.cellGroupExtras.submitReport(cellGroupId, payload);
+      flash('Report saved.');
+      viewCGReports(cellGroupId, name);
+    } catch (err) { showAlert(document.getElementById('cgReportAlert'), err.message); }
+  });
 }
 
 // ========================== VOLUNTEERS ==========================
@@ -1108,6 +1282,125 @@ async function deleteTestimonial(id) {
   catch (e) { flash(e.message, 'error'); }
 }
 
+// ========================== WORKFLOW REQUESTS ==========================
+async function renderWorkflows() {
+  const [templatesRes, requestsRes] = await Promise.all([
+    Api.workflowTemplates.list(),
+    Api.workflowRequests.list('?pendingForMe=true'),
+  ]);
+  const templates = templatesRes.data;
+  const pending = requestsRes.data;
+
+  viewContainer.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem;">
+      <h2 class="section-title">Workflow Requests</h2>
+      <select id="wfViewFilter" style="padding:.4rem .6rem;border:1px solid var(--gray-light);border-radius:var(--radius);">
+        <option value="pending">Awaiting my action (${pending.length})</option>
+        <option value="all">All requests</option>
+      </select>
+    </div>
+    <p style="color:var(--gray);font-size:.82rem;margin-bottom:.8rem;">
+      Each request moves through the steps defined by its workflow template (e.g. Baptism Request: Secretary → Pastor).
+      You'll only see requests here where the current step matches your role/permission.
+    </p>
+    <div id="wfList"></div>`;
+
+  async function loadRequests(mode) {
+    const list = document.getElementById('wfList');
+    list.innerHTML = '<p>Loading…</p>';
+    const { data } = mode === 'all' ? await Api.workflowRequests.list() : { data: pending };
+    if (!data.length) {
+      list.innerHTML = '<p style="color:var(--gray);">Nothing here right now.</p>';
+      return;
+    }
+    list.innerHTML = data.map(r => `
+      <div class="card" style="margin-bottom:.8rem;"><div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:.5rem;">
+          <div>
+            <h3>${escHtml(r.template.name)}</h3>
+            <p class="card-meta">For: ${escHtml(r.subject.firstName)} ${escHtml(r.subject.lastName)} &nbsp;|&nbsp;
+              Submitted by: ${escHtml(r.submittedBy.firstName)} ${escHtml(r.submittedBy.lastName)}</p>
+            <p class="card-meta">Status: <span class="badge ${r.status === 'completed' ? 'badge-completed' : r.status === 'rejected' ? 'badge-declined' : 'badge-pending'}">${r.status}</span>
+              ${r.status === 'in_progress' ? ` — current step: <strong>${escHtml(r.template.steps[r.currentStep]?.name || '')}</strong>` : ''}</p>
+          </div>
+          ${r.status === 'in_progress' ? `
+            <div style="display:flex;gap:.5rem;">
+              <button class="btn btn-sm btn-primary" onclick="advanceWorkflow('${r.id}','approved','${mode}')">Approve</button>
+              <button class="btn btn-sm btn-danger" onclick="advanceWorkflow('${r.id}','rejected','${mode}')">Reject</button>
+            </div>` : ''}
+        </div>
+        ${r.history.length ? `
+          <details style="margin-top:.6rem;"><summary style="cursor:pointer;font-size:.85rem;color:var(--gray);">History (${r.history.length})</summary>
+            <ul style="font-size:.85rem;margin-top:.4rem;">
+              ${r.history.map(h => `<li>${escHtml(h.stepName)} — ${h.decision} by ${escHtml(h.actedBy.firstName)} ${escHtml(h.actedBy.lastName)}${h.notes ? ': ' + escHtml(h.notes) : ''}</li>`).join('')}
+            </ul>
+          </details>` : ''}
+      </div></div>`).join('');
+  }
+
+  document.getElementById('wfViewFilter').addEventListener('change', (e) => loadRequests(e.target.value));
+  loadRequests('pending');
+
+  window.advanceWorkflow = async function advanceWorkflow(id, decision, mode) {
+    const notes = decision === 'rejected' ? prompt('Reason for rejecting (optional):') || '' : '';
+    try {
+      await Api.workflowRequests.advance(id, { decision, notes });
+      flash(`Request ${decision}.`);
+      renderWorkflows();
+    } catch (e) { flash(e.message, 'error'); }
+  };
+}
+
+// ========================== AUDIT LOG ==========================
+async function renderAuditLog() {
+  const { data } = await Api.auditLogs.list('?limit=100');
+  viewContainer.innerHTML = `
+    <h2 class="section-title">Audit Log</h2>
+    <p style="color:var(--gray);font-size:.82rem;margin-bottom:1rem;">
+      A read-only record of who changed or removed what. This list can't be edited from here — that's the point of an audit trail.
+    </p>
+    <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th></tr></thead>
+      <tbody>${data.length ? data.map(l => `
+        <tr>
+          <td style="font-size:.82rem;white-space:nowrap;">${fmtDate(l.createdAt)}</td>
+          <td>${l.actor ? escHtml(l.actor.firstName + ' ' + l.actor.lastName) : 'System'}</td>
+          <td><code>${escHtml(l.action)}</code></td>
+          <td style="font-size:.82rem;">${escHtml(l.entityType)}${l.entityId ? ' #' + l.entityId.slice(0, 8) : ''}</td>
+        </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gray);">No activity recorded yet.</td></tr>'}</tbody>
+    </table></div>`;
+}
+
+// ========================== DELETED MEMBERS (super_admin only) ==========================
+async function renderDeletedMembers() {
+  const { data } = await Api.membersExtras.deleted();
+  viewContainer.innerHTML = `
+    <h2 class="section-title">Deleted Members (${data.length})</h2>
+    <p style="color:var(--gray);font-size:.82rem;margin-bottom:1rem;">
+      Removing a member is a soft-delete — their record is kept, just hidden from the normal directory. Restore reactivates their account and login.
+    </p>
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Email</th><th>Deleted At</th><th></th></tr></thead>
+      <tbody>${data.length ? data.map(m => `
+        <tr>
+          <td>${escHtml(m.firstName)} ${escHtml(m.lastName)}</td>
+          <td style="font-size:.85rem;">${escHtml(m.email)}</td>
+          <td style="font-size:.85rem;">${fmtDate(m.deletedAt)}</td>
+          <td><button class="btn btn-sm btn-primary" onclick="restoreMember('${m.id}')">Restore</button></td>
+        </tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--gray);">No deleted members.</td></tr>'}</tbody>
+    </table>`;
+}
+
+async function restoreMember(id) {
+  if (!confirm('Restore this member\'s account?')) return;
+  try {
+    await Api.membersExtras.restore(id);
+    flash('Member restored.');
+    renderDeletedMembers();
+  } catch (e) { flash(e.message, 'error'); }
+}
+
 // ========================== ROLES & PERMISSIONS ==========================
 async function renderRoles() {
   const { data } = await Api.roles.list();
@@ -1348,6 +1641,10 @@ const leadershipCfg = {
     {k:'photo',type:'text',label:'Photo URL'},
     {k:'email',type:'text',label:'Email'},
     {k:'phone',type:'text',label:'Phone'},
+    {k:'servingSince',type:'date',label:'Serving Since (years-serving is calculated automatically)'},
+    {k:'skills',type:'taglist',label:'Skills'},
+    {k:'responsibilities',type:'taglist',label:'Responsibilities'},
+    {k:'acceptsAppointments',type:'checkbox',label:'Accept "Book Appointment" requests from members'},
     {k:'displayOrder',type:'number',label:'Display Order (lower = first)'},
     {k:'isActive',type:'checkbox',label:'Active / Show on website'},
   ],
@@ -1494,6 +1791,13 @@ function openCrudForm(item = null) {
               <input type="checkbox" name="${f.k}" id="cfi_${f.k}" ${v?'checked':''}>
               <label for="cfi_${f.k}" style="margin:0;">${f.label}</label>
             </div>`;
+          if (f.type === 'taglist') {
+            const display = Array.isArray(v) ? v.join(', ') : String(v || '');
+            return `<div class="form-group" style="grid-column:1/-1;">
+              <label>${f.label} <span style="font-weight:400;color:var(--gray);font-size:.8rem;">(comma-separated)</span></label>
+              <input name="${f.k}" value="${escHtml(display)}" placeholder="e.g. Preaching, Leadership Training, Counselling">
+            </div>`;
+          }
           let dv = v;
           if (f.type === 'datetime-local' && v) dv = new Date(v).toISOString().slice(0,16);
           if (f.type === 'date' && v) dv = new Date(v).toISOString().slice(0,10);
@@ -1516,6 +1820,7 @@ function openCrudForm(item = null) {
     config.fields.forEach(fd => {
       if (fd.type === 'checkbox') payload[fd.k] = f.elements[fd.k].checked;
       else if (fd.type === 'number') payload[fd.k] = f.elements[fd.k].value ? Number(f.elements[fd.k].value) : null;
+      else if (fd.type === 'taglist') payload[fd.k] = f.elements[fd.k].value.split(',').map(s => s.trim()).filter(Boolean);
       else payload[fd.k] = f.elements[fd.k].value;
     });
     try {
